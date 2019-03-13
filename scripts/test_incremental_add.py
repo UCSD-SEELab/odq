@@ -80,9 +80,9 @@ if __name__ == '__main__':
     TRAIN_VAL_RATIO = 0.8
     TRAIN_TEST_RATIO = 0.9 # Server power has test/train datasets pre-split due to tasks
 
-    filename_base = datetime.now().strftime('Inc_Add_%Y%m%d%H%M%S')
+    filename_base = datetime.now().strftime('{0}_Inc_Add_%Y%m%d%H%M%S'.format(DATASET.__name__.split('.')[-1]))
 
-    np.random.seed(1234)
+    np.random.seed(1235)
 
     plt.ion()
 

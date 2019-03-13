@@ -25,15 +25,15 @@ def generate_model_server_power():
     Create neural network model
     """
     layer_input = Input(shape=(N_x, )) # Input features
-    layer1 = Dense(500, activation='relu')(layer_input)
-    #layer1 = Dropout(0)(layer1)
-    layer1 = Dense(500, activation='relu')(layer1)
-    #layer1 = Dropout(0.5)(layer1)
-    layer2 = Dense(500, activation='relu')(layer1)
-    #layer2 = Dropout(0.5)(layer2)
+    layer1 = Dense(200, activation='relu')(layer_input)
+    layer1 = Dropout(0.5)(layer1)
+    layer1 = Dense(200, activation='relu')(layer1)
+    layer1 = Dropout(0.5)(layer1)
+    layer2 = Dense(200, activation='relu')(layer1)
+    layer2 = Dropout(0.5)(layer2)
     layer_out = Dense(N_y)(layer2)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
-    optimizer_adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    optimizer_adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     model_nn.compile(optimizer=optimizer_adam, loss='mean_squared_error', metrics=['mae'])
     return model_nn
 
@@ -72,15 +72,15 @@ if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    DATASET = home_energy
+    DATASET = server_power
     ind_assess = [-1]
-    list_compression_ratio = np.append([1.2, 1.5], 2**(1 + np.arange(4)))[::-1]
+    list_compression_ratio = np.append([1.2, 1.5], 2**(1 + np.arange(6)))[::-1]
     TRAIN_VAL_RATIO = 0.8
     TRAIN_TEST_RATIO = 0.9 # Server power has test/train datasets pre-split due to tasks
 
-    filename_base = datetime.now().strftime('Data_Size_%Y%m%d%H%M%S')
+    filename_base = datetime.now().strftime('{0}_Data_Size_%Y%m%d%H%M%S'.format(DATASET.__name__.split('.')[-1]))
 
-    np.random.seed(1234)
+    np.random.seed(1235)
 
     plt.ion()
 
@@ -156,6 +156,10 @@ if __name__ == '__main__':
 
     for compression_ratio in list_compression_ratio:
         N_saved = int(N_datapoints // compression_ratio)
+        if DATASET is home_energy:
+            N_epochs = int(max(500, 50*compression_ratio))
+        else:
+            N_epochs = int(max(100, 20*compression_ratio))
 
         print('\n\nCompression Ratio {0}: {1} -> {2}'.format(compression_ratio, N_datapoints, N_saved))
         quantizer = OnlineDatasetQuantizer(num_datapoints_max=N_saved, num_input_features=N_x, num_target_features=N_y,
@@ -169,8 +173,8 @@ if __name__ == '__main__':
             model_full = generate_model_server_power()
         elif DATASET is home_energy:
             model_odq = generate_model_home_energy()
-            model_reservoir = generate_model_server_power()
-            model_full = generate_model_server_power()
+            model_reservoir = generate_model_home_energy()
+            model_full = generate_model_home_energy()
 
         for ind, X_new, Y_new in zip(range(N_datapoints), X_scaled, Y_scaled):
             quantizer.add_point(X_new, Y_new)
@@ -179,23 +183,23 @@ if __name__ == '__main__':
                 print('\nind {0}: Generate model from ODQ-reduced Data'.format(ind))
                 X_temp, Y_temp = quantizer.get_dataset()
                 w_temp = quantizer.get_sample_weights()
-                history_odq = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=500, sample_weight=w_temp, verbose=0,
+                history_odq = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp, verbose=0,
                                             validation_split=(1 - TRAIN_VAL_RATIO))
                 score_odq = model_odq.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
                 Y_odq_predict = min_max_scaler_y.inverse_transform(model_odq.predict(min_max_scaler_x.transform(X_test)))
 
-                print('    RMSE: {0}'.format(np.sqrt(np.sum((Y_odq_predict - Y_test)**2))))
+                print('    RMSE: {0}'.format(np.sqrt(np.mean((Y_odq_predict - Y_test)**2))))
 
                 print('\nind {0}: Generate model from Reservoir-reduced Data'.format(ind))
                 X_temp, Y_temp = reservoir_sampler.get_dataset()
-                history_reservoir = model_reservoir.fit(X_temp, Y_temp, batch_size=32, epochs=500, verbose=0,
+                history_reservoir = model_reservoir.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, verbose=0,
                                             validation_split=(1 - TRAIN_VAL_RATIO))
                 score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
                 Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
 
-                print('    RMSE: {0}'.format(np.sqrt(np.sum((Y_reservoir_predict - Y_test)**2))))
+                print('    RMSE: {0}'.format(np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2))))
 
                 # Save model progress
                 with open(os.path.join(os.path.dirname(__file__), '..', 'results', filename_base + '_{1}_models{0:06d}.pkl'.format(ind, N_saved)), 'wb') as fid:
@@ -228,26 +232,30 @@ if __name__ == '__main__':
             plt.draw()
             plt.pause(1)
 
+        time_start = time.time()
         print('\nGenerate final model from ODQ-reduced Data')
         X_temp, Y_temp = quantizer.get_dataset()
         w_temp = quantizer.get_sample_weights()
-        history_odq = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=500, sample_weight=w_temp, verbose=0,
+        history_odq = model_odq.fit(X_temp, Y_temp, batch_size=128, epochs=N_epochs, sample_weight=w_temp, verbose=0,
                                     validation_split=0.1)
         score_odq = model_odq.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
         Y_odq_predict = min_max_scaler_y.inverse_transform(model_odq.predict(min_max_scaler_x.transform(X_test)))
 
-        print('    RMSE: {0}'.format(np.sqrt(np.sum((Y_odq_predict - Y_test)**2))))
+        print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_odq_predict - Y_test)**2))))
+        print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
+        time_start = time.time()
         print('\nGenerate final model from Reservoir-reduced Data')
         X_temp, Y_temp = reservoir_sampler.get_dataset()
-        history_reservoir = model_reservoir.fit(X_temp, Y_temp, batch_size=32, epochs=500, verbose=0,
+        history_reservoir = model_reservoir.fit(X_temp, Y_temp, batch_size=128, epochs=N_epochs, verbose=0,
                                                 validation_split=0.1)
         score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
         Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
 
-        print('    RMSE: {0}'.format(np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2))))
+        print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2))))
+        print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
         with open(os.path.join(os.path.dirname(__file__), '..', 'results', filename_base + '_{0}_models_final.pkl'.format(N_saved)), 'wb') as fid:
             pkl.dump({'quantizer': quantizer, 'reservoir_sampler': reservoir_sampler,
@@ -257,14 +265,16 @@ if __name__ == '__main__':
                       'Y_test': Y_test, 'X_test': X_test}, fid)
 
     # Save full model
+    time_start = time.time()
     print('\nGenerate final model from full dataset')
-    history_full = model_full.fit(X_scaled, Y_scaled, batch_size=32, epochs=400, verbose=0,
+    history_full = model_full.fit(X_scaled, Y_scaled, batch_size=128, epochs=400, verbose=0,
                                   validation_split=0.1)
     score_full = model_full.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
     Y_full_predict = min_max_scaler_y.inverse_transform(model_full.predict(min_max_scaler_x.transform(X_test)))
 
-    print('    RMSE: {0}'.format(np.sqrt(np.mean((Y_full_predict - Y_test) ** 2))))
+    print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_full_predict - Y_test) ** 2))))
+    print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
     with open(os.path.join(os.path.dirname(__file__), '..', 'results',
                            filename_base + '_{0}_model_full.pkl'.format(N_saved)), 'wb') as fid:
