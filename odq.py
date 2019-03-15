@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+import time
 
 FLAG_VERBOSE = False
 PLOT_DELAY = 0.0001
@@ -11,7 +12,7 @@ def dist_L2(v1, m1, w=None):
     if w is None:
         w = np.ones(v1.shape)
 
-    return np.sqrt(np.sum(((m1 - v1) / w)**2, axis=1))
+    return np.sum(((m1 - v1) * w)**2, axis=1)
 
 
 def calc_weights_max_cov(X, Y):
@@ -46,7 +47,7 @@ class OnlineDatasetQuantizer(object):
             w_x_columns = np.ones(self.num_x)
         if w_y_columns is None:
             w_y_columns = np.ones(self.num_y)
-        self.w = np.append(w_x_columns, w_y_columns)
+        self.w = 1 / np.append(w_x_columns, w_y_columns)
 
         self.ind_features = self.num_x + self.num_y - 1
 
@@ -234,9 +235,10 @@ class OnlineDatasetQuantizer(object):
 
 if __name__ == '__main__':
     plt.ion()
-    N_dataset = 15000
-    N_saved   = 1500
-    N_dim = 2
+    N_dataset = 30000
+    N_saved   = 10000
+    FLAG_PLOT = False
+    N_dim = 30
 
     np.random.seed(1234)
 
@@ -247,45 +249,54 @@ if __name__ == '__main__':
     for datapoint_full, datapoint_raw, alpha in zip(dataset_full, dataset_raw, dataset_alpha):
         if alpha < 0.4:
             datapoint_full[0] = 1 + 2*datapoint_raw[0]
-            datapoint_full[1] = 4 + 2*datapoint_raw[1]
+            datapoint_full[-1] = 4 + 2*datapoint_raw[1]
         elif alpha < 0.5:
             datapoint_full[0] = 4 + 0.25*datapoint_raw[0]
-            datapoint_full[1] = 5 + 1.25*datapoint_raw[1]
+            datapoint_full[-1] = 5 + 1.25*datapoint_raw[1]
         elif alpha < 0.75:
             datapoint_full[0] = 3 + 0.6*datapoint_raw[0] + 1*datapoint_raw[1]
-            datapoint_full[1] = 3 + datapoint_raw[1]
+            datapoint_full[-1] = 3 + datapoint_raw[1]
         elif alpha <= 1:
             datapoint_full[0] = 0 + 0.7*datapoint_raw[0] + 0.5*datapoint_raw[1]
-            datapoint_full[1] = 1 + 0.7*datapoint_raw[1]
+            datapoint_full[-1] = 1 + 0.7*datapoint_raw[1]
 
     # Run N points of the distribution through ODQ
-    quantizer = OnlineDatasetQuantizer(N_saved, 1, 1)
+    quantizer = OnlineDatasetQuantizer(N_saved, N_dim - 1, 1)
+
 
     for ind, datapoint in enumerate(dataset_full):
-        quantizer.add_point(datapoint[0], datapoint[1])
-        if ind % 100 == 0:
-            quantizer.plot('ODQ Sample {0:5d}'.format(ind))
+        time_start = time.time()
+        quantizer.add_point(datapoint[:-1], datapoint[-1])
+        time_end = time.time()
 
-    # Plot ODQ, full dataset, and uniform random sampling of dataset
-    quantizer.plot()
+        print('ind: {0}  time:{1:0.2f}'.format(ind, 1000*(time_end - time_start)))
 
-    # Full dataset
-    plt.figure(2)
-    plt.title('Full Dataset')
-    plt.ylim((-3, 11))
-    plt.xlim((-7, 7))
-    plt.scatter(dataset_full[:, 0], dataset_full[:, 1], s=1)
-    plt.grid(True)
-    plt.draw()
+        if FLAG_PLOT:
+            if ind % 100 == 0:
+                quantizer.plot('ODQ Sample {0:5d}'.format(ind))
 
-    # Uniform random selection
-    ind_random = np.random.choice(N_dataset, np.round(1.2*N_saved).astype(int))
-    plt.figure(3)
-    plt.title('Uniform Random Sampling')
-    plt.ylim((-3, 11))
-    plt.xlim((-7, 7))
-    plt.scatter(dataset_full[ind_random, 0], dataset_full[ind_random, 1], s=1)
-    plt.grid(True)
-    plt.draw()
-    plt.pause(1000)
+
+    if FLAG_PLOT:
+        # Plot ODQ, full dataset, and uniform random sampling of dataset
+        quantizer.plot()
+
+        # Full dataset
+        plt.figure(2)
+        plt.title('Full Dataset')
+        plt.ylim((-3, 11))
+        plt.xlim((-7, 7))
+        plt.scatter(dataset_full[:, 0], dataset_full[:, 1], s=1)
+        plt.grid(True)
+        plt.draw()
+
+        # Uniform random selection
+        ind_random = np.random.choice(N_dataset, np.round(1.2*N_saved).astype(int))
+        plt.figure(3)
+        plt.title('Uniform Random Sampling')
+        plt.ylim((-3, 11))
+        plt.xlim((-7, 7))
+        plt.scatter(dataset_full[ind_random, 0], dataset_full[ind_random, 1], s=1)
+        plt.grid(True)
+        plt.draw()
+        plt.pause(1000)
 

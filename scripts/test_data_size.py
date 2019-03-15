@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from keras.layers import Input, Dense, Dropout
 from keras import Model
+from keras.callbacks import EarlyStopping
 from keras.optimizers import Adam
 import keras.backend as K
 from functools import partial
@@ -75,14 +76,14 @@ if __name__ == '__main__':
     PLOT_DELAY = 0.0001
     DATASET = server_power
     ind_assess = [-1]
-    list_compression_ratio = np.append([1.2, 1.5], 2**(1 + np.arange(8)))[::-1]
-    N_trials = 2
+    list_compression_ratio = [2**9]#2**(1 + np.arange(9))[::-1]
+    N_trials = 10
     TRAIN_VAL_RATIO = 0.8
-    TRAIN_TEST_RATIO = 0.9 # Server power has test/train datasets pre-split due to tasks
+    TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
 
     filename_base = datetime.now().strftime('{0}_Data_Size_%Y%m%d%H%M%S'.format(DATASET.__name__.split('.')[-1]))
 
-    np.random.seed(1237)
+    # np.random.seed(1237)
 
     plt.ion()
 
@@ -165,12 +166,15 @@ if __name__ == '__main__':
                 Y_scaled = min_max_scaler_y.fit_transform(Y_train)
                 N_epochs = int(max(500, 50*compression_ratio))
             else:
-                N_epochs = int(max(100, 20*compression_ratio))
+                N_epochs = int(max(100, 30*compression_ratio))
 
             print('\n\nCompression Ratio {0}: {1} -> {2}'.format(compression_ratio, N_datapoints, N_saved))
             quantizer = OnlineDatasetQuantizer(num_datapoints_max=N_saved, num_input_features=N_x, num_target_features=N_y,
                                                w_x_columns=w_x, w_y_columns=w_y)
             reservoir_sampler = ReservoirSampler(num_datapoints_max=N_saved, num_input_features=N_x, num_target_features=N_y)
+
+            # Create an early stopping callback appropriate for the dataset size
+            cb_earlystopping = EarlyStopping(monitor='val_loss', patience=max([10, min([5*compression_ratio, 250])]), restore_best_weights=True)
 
             # Create machine learning models for each evaluation step
             if DATASET is server_power:
@@ -190,7 +194,7 @@ if __name__ == '__main__':
                     X_temp, Y_temp = quantizer.get_dataset()
                     w_temp = quantizer.get_sample_weights()
                     history_odq = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp, verbose=0,
-                                                validation_split=(1 - TRAIN_VAL_RATIO))
+                                                validation_split=(1 - TRAIN_VAL_RATIO), callbacks=[cb_earlystopping])
                     score_odq = model_odq.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
                     Y_odq_predict = min_max_scaler_y.inverse_transform(model_odq.predict(min_max_scaler_x.transform(X_test)))
@@ -200,7 +204,7 @@ if __name__ == '__main__':
                     print('\nind {0}: Generate model from Reservoir-reduced Data'.format(ind))
                     X_temp, Y_temp = reservoir_sampler.get_dataset()
                     history_reservoir = model_reservoir.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, verbose=0,
-                                                validation_split=(1 - TRAIN_VAL_RATIO))
+                                                validation_split=(1 - TRAIN_VAL_RATIO), callbacks=[cb_earlystopping])
                     score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
                     Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
@@ -243,7 +247,7 @@ if __name__ == '__main__':
             X_temp, Y_temp = quantizer.get_dataset()
             w_temp = quantizer.get_sample_weights()
             history_odq = model_odq.fit(X_temp, Y_temp, batch_size=128, epochs=N_epochs, sample_weight=w_temp, verbose=0,
-                                        validation_split=0.1)
+                                        validation_split=(1 - TRAIN_VAL_RATIO), callbacks=[cb_earlystopping])
             score_odq = model_odq.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
             Y_odq_predict = min_max_scaler_y.inverse_transform(model_odq.predict(min_max_scaler_x.transform(X_test)))
@@ -255,7 +259,7 @@ if __name__ == '__main__':
             print('\nGenerate final model from Reservoir-reduced Data')
             X_temp, Y_temp = reservoir_sampler.get_dataset()
             history_reservoir = model_reservoir.fit(X_temp, Y_temp, batch_size=128, epochs=N_epochs, verbose=0,
-                                                    validation_split=0.1)
+                                                    validation_split=(1 - TRAIN_VAL_RATIO), callbacks=[cb_earlystopping])
             score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
             Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
@@ -280,8 +284,9 @@ if __name__ == '__main__':
         # Save full model
         time_start = time.time()
         print('\nGenerate final model from full dataset')
+        cb_earlystopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
         history_full = model_full.fit(X_scaled, Y_scaled, batch_size=128, epochs=400, verbose=0,
-                                      validation_split=0.1)
+                                      validation_split=(1 - TRAIN_VAL_RATIO), callbacks=[cb_earlystopping])
         score_full = model_full.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
         Y_full_predict = min_max_scaler_y.inverse_transform(model_full.predict(min_max_scaler_x.transform(X_test)))
