@@ -74,10 +74,10 @@ if __name__ == '__main__':
     FLAG_PLOT = False
     FLAG_SAVE_MODEL = False
     PLOT_DELAY = 0.0001
-    DATASET = server_power
+    DATASET = home_energy
     ind_assess = [-1]
-    list_compression_ratio = [2**9]#2**(1 + np.arange(9))[::-1]
-    N_trials = 10
+    list_compression_ratio = np.append([1.3], 2**(1 + np.arange(7)))#2**(1 + np.arange(9))[::-1]
+    N_trials = 3
     TRAIN_VAL_RATIO = 0.8
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
 
@@ -174,7 +174,7 @@ if __name__ == '__main__':
             reservoir_sampler = ReservoirSampler(num_datapoints_max=N_saved, num_input_features=N_x, num_target_features=N_y)
 
             # Create an early stopping callback appropriate for the dataset size
-            cb_earlystopping = EarlyStopping(monitor='val_loss', patience=max([10, min([5*compression_ratio, 250])]), restore_best_weights=True)
+            cb_earlystopping = EarlyStopping(monitor='val_loss', patience=max([40, min([10*compression_ratio, 250])]), restore_best_weights=True)
 
             # Create machine learning models for each evaluation step
             if DATASET is server_power:
@@ -279,7 +279,6 @@ if __name__ == '__main__':
                               'history_odq': history_odq, 'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
                               'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir, 'Y_reservoir_predict': Y_reservoir_predict,
                               'Y_test': Y_test, 'X_test': X_test}, fid)
-
 
         # Save full model
         time_start = time.time()
