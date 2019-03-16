@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from matplotlib import pyplot as plt
 import time
@@ -32,8 +34,8 @@ def calc_weights_max_cov(X, Y):
         cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
         cov_max[ind_x] = np.max(np.abs(cov_temp))
 
-    w_max_cov = np.append(std_x * (1 - cov_max), std_y * (1 - np.max(cov_max)))
-    return w_max_cov
+    w_max_cov = np.append((1 - cov_max)/std_x, (1 - np.max(cov_max))/std_y)
+    return w_max_cov, np.append(cov_max, np.max(cov_max))
 
 
 class OnlineDatasetQuantizer(object):
@@ -47,7 +49,7 @@ class OnlineDatasetQuantizer(object):
             w_x_columns = np.ones(self.num_x)
         if w_y_columns is None:
             w_y_columns = np.ones(self.num_y)
-        self.w = 1 / np.append(w_x_columns, w_y_columns)
+        self.w = np.append(w_x_columns, w_y_columns)
 
         self.ind_features = self.num_x + self.num_y - 1
 
@@ -212,7 +214,7 @@ class OnlineDatasetQuantizer(object):
         # Update distance for point that was updated
         self.dataset[ind_min, self.ind_dist] = temp_dist.min()
 
-    def plot(self, title_in='ODQ', ind_dims=[0, 1], fig_num=1):
+    def plot(self, title_in='ODQ', ind_dims=[0, 1], fig_num=1, b_save_fig=False, title_save='ODQ_hist'):
         """
         Plots distribution in up to 3 dimensions
         """
@@ -229,14 +231,59 @@ class OnlineDatasetQuantizer(object):
         else:
             plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]])
         plt.grid(True)
-        plt.draw()
-        plt.pause(PLOT_DELAY/2)
+        plt.tight_layout()
+
+        if b_save_fig:
+            plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img', '{0}.png'.format(title_save)))
+        else:
+            plt.draw()
+            plt.pause(PLOT_DELAY / 2)
+
+    def plot_hist(self, title_in='ODQ Features', fig_num=10, b_save_fig=False, title_save='ODQ_hist'):
+        """
+        Plot histrograms of each parameter distribution
+        """
+        n_fig = ((self.ind_features + 1) // 12) + 1
+
+        ind_feature = 0
+
+        list_figs = []
+        list_axs = []
+
+        for ind_fig in range(n_fig):
+            plt.figure(fig_num+ind_fig)
+            plt.clf()
+            temp_fig, temp_ax = plt.subplots(num=(fig_num+ind_fig), nrows=3, ncols=4)
+            list_figs.append(temp_fig)
+            list_axs.append(temp_ax)
+
+            # list_figs[ind_fig].suptitle(title_in)
+
+            for subplot_row in list_axs[ind_fig]:
+                for subplot_el in subplot_row:
+                    subplot_el.hist(self.dataset[:, ind_feature], bins=20, density=True)
+                    subplot_el.set_xlabel('Feature {0}'.format(ind_feature))
+                    ind_feature += 1
+                    if ind_feature > self.ind_features:
+                        break
+                if ind_feature > self.ind_features:
+                    break
+            if ind_feature > self.ind_features:
+                break
+
+            plt.tight_layout()
+
+            if b_save_fig:
+                plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img', 'hist_{0}.png'.format(title_save.format(ind_fig))))
+            else:
+                plt.draw()
+                plt.pause(PLOT_DELAY / 2)
 
 
 if __name__ == '__main__':
     plt.ion()
-    N_dataset = 30000
-    N_saved   = 10000
+    N_dataset = 10000
+    N_saved   = 1000
     FLAG_PLOT = False
     N_dim = 30
 
@@ -269,12 +316,14 @@ if __name__ == '__main__':
         quantizer.add_point(datapoint[:-1], datapoint[-1])
         time_end = time.time()
 
-        print('ind: {0}  time:{1:0.2f}'.format(ind, 1000*(time_end - time_start)))
+        # print('ind: {0}  time:{1:0.2f}'.format(ind, 1000*(time_end - time_start)))
 
         if FLAG_PLOT:
             if ind % 100 == 0:
                 quantizer.plot('ODQ Sample {0:5d}'.format(ind))
 
+
+    quantizer.plot_hist()
 
     if FLAG_PLOT:
         # Plot ODQ, full dataset, and uniform random sampling of dataset

@@ -16,10 +16,10 @@ def load():
                      'slave1.cache-misses.raw', 'slave1.L1-dcache-loads.raw', 'slave1.L1-dcache-stores.raw',
                      'slave1.r0A0.raw', 'slave1.r1FDC.raw', 'slave1.r010.raw',
                      'slave2.cpu-cycles.raw',  'slave2.instructions.raw', 'slave2.branch-instructions.raw',
-                     'slave2.branch-misses.raw', 'slave2.bus-cycles.raw', 'slave2.cache-references.raw',
+                     'slave2.branch-misses.raw', 'slave2.cache-references.raw',
                      'slave2.cache-misses.raw', 'slave2.L1-dcache-loads.raw', 'slave2.L1-dcache-stores.raw',
                      'slave2.r1C2.raw', 'slave2.r110.raw', 'slave2.r1A2.raw',
-                     ]
+                     ] # removed 'slave2.bus-cycles.raw' due to column being all 0
     list_targets = ['total_power']
 
     directory_train = os.path.join(os.path.dirname(__file__), 'power_toy_train.csv')
