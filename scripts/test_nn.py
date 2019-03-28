@@ -22,15 +22,15 @@ if __name__ == '__main__':
     FLAG_PLOT = False
     FLAG_SAVE_MODEL = False
     FLAG_TRAIN_MODEL = False
-    list_filename_previous_quant = ['server_power_data_size_20190315180856_261_0_quantized.pkl']
+    list_filename_previous_quant = ['home_energy_data_size_20190327182157_1.3']
     directory_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
-    DATASET = server_power
+    DATASET = home_energy
     ind_assess = [-1] #1000, 3000, 5000, 7000, 9000, 11000, 13000, 15000]
     list_compression_ratio = np.append([], 2**(1 + np.arange(8)))[::-1]#2**(1 + np.arange(9))[::-1]
     N_trials = 3
-    TRAIN_VAL_RATIO = 0.8
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
+    TRAIN_VAL_RATIO = 0.8
 
     # np.random.seed(1237)
 
@@ -60,55 +60,72 @@ if __name__ == '__main__':
 
             filename_parts = file.split('_')
             DATASET = eval('{0}_{1}'.format(filename_parts[0], filename_parts[1]))
+            compression_ratio = float(filename_parts[-3])
             filename_base = file.replace('quantized.pkl', '')
-            filename_base = filename_base.replace('_' + filename_parts[-3], '')
             print('  SUCCESS')
         except:
             print('  ERROR. Skipping.')
             continue
 
+        N_datapoints = X_train.shape[0]
+        N_x = X_train.shape[1]
+        N_y = Y_train.shape[1]
+
+        N_epochs = 500
+
+        X_scaled = min_max_scaler_x.transform(X_train)
+        Y_scaled = min_max_scaler_y.transform(Y_train)
 
         for ind_loop in range(N_trials):
-            X_scaled = min_max_scaler_x.fit_transform(X_train)
-            Y_scaled = min_max_scaler_y.fit_transform(Y_train)
+            print('  Trial {0} of {1}:'.format(ind_loop + 1, N_trials))
+            # Create an early stopping callback appropriate for the dataset size
+            cb_earlystopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
 
-            # Construct fixed memory OnlineDatasetQuantizer
-            N_datapoints = X_train.shape[0]
-            N_x = X_train.shape[1]
-            N_y = Y_train.shape[1]
+            # Create consistent validation set for multi-stage training
+            X_fit, X_val, Y_fit, Y_val = train_test_split(X_scaled, Y_scaled, pct_train=TRAIN_VAL_RATIO)
 
-            if DATASET is home_energy:
-                X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
-                X_scaled = min_max_scaler_x.fit_transform(X_train)
-                Y_scaled = min_max_scaler_y.fit_transform(Y_train)
+            # Create machine learning models for each evaluation step
+            if DATASET is server_power:
+                model_full = generate_model_server_power(N_x, N_y)
+            elif DATASET is home_energy:
+                model_full = generate_model_home_energy(N_x, N_y)
 
-            for ind_loop in range(N_trials):
-                # Create machine learning models for each evaluation step
-                if DATASET is server_power:
-                    model_full = generate_model_server_power(N_x, N_y)
-                elif DATASET is home_energy:
-                    model_full = generate_model_home_energy(N_x, N_y)
+            # Perform training on the full dataset
+            # Train the model on 10 epochs before checking for early stopping conditions to prevent premature return
+            time_start = time.time()
+            print('\nGenerate model from full dataset')
 
-                # Save full model
-                time_start = time.time()
-                print('\nGenerate model from full dataset')
-                cb_earlystopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                history_full = model_full.fit(X_scaled, Y_scaled, batch_size=128, epochs=400, verbose=0,
-                                              validation_split=(1 - TRAIN_VAL_RATIO), callbacks=[cb_earlystopping])
-                score_full = model_full.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
+            history_temp = model_full.fit(X_fit, Y_fit, batch_size=128, epochs=10, verbose=0,
+                                          validation_data=(X_val, Y_val))
+            history_full = history_temp.history
+            history_full['epoch'] = history_temp.epoch
+            history_temp = model_full.fit(X_fit, Y_fit, batch_size=128, epochs=N_epochs-10, verbose=0,
+                                          validation_data=(X_val, Y_val), initial_epoch=10,
+                                          callbacks=[cb_earlystopping])
+            history_full['epoch'].extend(history_temp.epoch)
+            history_full['val_loss'].extend(history_temp.history['val_loss'])
+            history_full['val_mean_squared_error'].extend(history_temp.history['val_mean_squared_error'])
+            history_full['val_mean_absolute_error'].extend(history_temp.history['val_mean_absolute_error'])
+            history_full['loss'].extend(history_temp.history['loss'])
+            history_full['mean_squared_error'].extend(history_temp.history['mean_squared_error'])
+            history_full['mean_absolute_error'].extend(history_temp.history['mean_absolute_error'])
 
-                Y_full_predict = min_max_scaler_y.inverse_transform(model_full.predict(min_max_scaler_x.transform(X_test)))
+            score_full = model_full.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
-                print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_full_predict - Y_test) ** 2))))
-                print('    Time: {0:0.2f} s'.format(time.time() - time_start))
+            Y_full_predict = min_max_scaler_y.inverse_transform(model_full.predict(min_max_scaler_x.transform(X_test)))
 
-                if FLAG_SAVE_MODEL:
-                    with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
-                                           filename_base + 'model_{0}of{1}_full.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
-                        pkl.dump({'model_full': model_full, 'history_full':history_full, 'score_full': score_full,
-                                  'Y_full_predict': Y_full_predict, 'Y_test': Y_test, 'X_test': X_test}, fid)
-                else:
-                    with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
-                                           filename_base + 'results_{0}of{1}_full.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
-                        pkl.dump({'history_full':history_full, 'score_full': score_full,
-                                  'Y_full_predict': Y_full_predict, 'Y_test': Y_test, 'X_test': X_test}, fid)
+            print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_full_predict - Y_test) ** 2))))
+            print('    Time: {0:0.2f} s'.format(time.time() - time_start))
+
+            if FLAG_SAVE_MODEL:
+                with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
+                                       filename_base + 'model_{0}of{1}_full.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
+                    pkl.dump({'model_full': model_full, 'history_full':history_full, 'score_full': score_full,
+                              'Y_full_predict': Y_full_predict, 'Y_test': Y_test, 'X_test': X_test,
+                              'N_datapoints': N_datapoints + Y_test.shape[0]}, fid)
+            else:
+                with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
+                                       filename_base + 'results_{0}of{1}_full.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
+                    pkl.dump({'history_full':history_full, 'score_full': score_full,
+                              'Y_full_predict': Y_full_predict, 'Y_test': Y_test, 'X_test': X_test,
+                              'N_datapoints': N_datapoints}, fid)
