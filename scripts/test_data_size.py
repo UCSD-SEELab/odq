@@ -6,13 +6,14 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.callbacks import EarlyStopping
+from keras import backend as K
 
 from ml_models import generate_model_server_power, generate_model_home_energy, train_test_split
 import pickle as pkl
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
 
-from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov
+from odq.odq import OnlineDatasetQuantizer
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power
 
@@ -22,32 +23,26 @@ if __name__ == '__main__':
     FLAG_PLOT = False
     FLAG_SAVE_MODEL = False
     FLAG_TRAIN_MODEL = False
-    list_filename_previous_quant = ['home_energy_data_size_20190327182157']
     directory_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
+    directory_target = 'weights_cov_max2_20190401'
 
-    DATASET = server_power
-    ind_assess = [-1] #1000, 3000, 5000, 7000, 9000, 11000, 13000, 15000]
-    list_compression_ratio = np.append([], 2**(1 + np.arange(8)))[::-1]#2**(1 + np.arange(9))[::-1]
-    N_trials = 3
+    N_trials = 1
     TRAIN_VAL_RATIO = 0.8
 
     # np.random.seed(1237)
 
     plt.ion()
 
-    for file in os.listdir(directory_quant):
+    for file in os.listdir(os.path.join(directory_quant, directory_target)):
         if not (file.lower().endswith('.pkl')):
             continue
 
-        filename_match = [file.startswith(filename_base) for filename_base in list_filename_previous_quant]
-
-        if not (any(filename_match)):
-            continue
+        filename_base = file.replace('quantized.pkl', '')
 
         print('\n\nLoading data from {0}'.format(file))
 
         try:
-            with open(os.path.join(directory_quant, file), 'rb') as fid:
+            with open(os.path.join(directory_quant, directory_target, file), 'rb') as fid:
                 data_temp = pkl.load(fid)
             min_max_scaler_x = data_temp['min_max_scaler_x']
             min_max_scaler_y = data_temp['min_max_scaler_y']
@@ -61,7 +56,6 @@ if __name__ == '__main__':
             filename_parts = file.split('_')
             DATASET = eval('{0}_{1}'.format(filename_parts[0], filename_parts[1]))
             compression_ratio = float(filename_parts[-3])
-            filename_base = file.replace('quantized.pkl', '')
             print('  SUCCESS')
         except:
             print('  ERROR. Skipping.')
@@ -74,12 +68,19 @@ if __name__ == '__main__':
         if DATASET is home_energy:
             N_epochs = int(max(500, 50*compression_ratio))
         else:
-            N_epochs = int(max(100, 30*compression_ratio))
+            N_epochs = int(max(200, 30*compression_ratio))
 
         print('\n\nCompression Ratio {0}'.format(compression_ratio))
 
         for ind_loop in range(N_trials):
             print('  Trial {0} of {1}:'.format(ind_loop + 1, N_trials))
+
+            if os.path.isfile(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
+                                           directory_target,
+                                           filename_base + 'results_{0}of{1}_reduced.pkl'.format(ind_loop, N_trials))):
+                print('  File already processed')
+                continue
+
             # Create an early stopping callback appropriate for the dataset size
             cb_earlystopping = EarlyStopping(monitor='val_loss', patience=max([20, min([5*compression_ratio, 250])]), restore_best_weights=True)
 
@@ -96,14 +97,17 @@ if __name__ == '__main__':
             print('    Generating from Reservoir-reduced Data')
             X_temp, Y_temp = reservoir_sampler.get_dataset()
 
+            X_temp = min_max_scaler_x.transform(X_temp)
+            Y_temp = min_max_scaler_y.transform(Y_temp)
+
             X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
 
             # Train the model on 10 epochs before checking for early stopping conditions to prevent premature return
-            history_temp = model_reservoir.fit(X_temp, Y_temp, batch_size=128, epochs=10, verbose=0,
+            history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=32, epochs=10, verbose=0,
                                                validation_data=(X_val, Y_val))
             history_reservoir = history_temp.history
             history_reservoir['epoch'] = history_temp.epoch
-            history_temp = model_reservoir.fit(X_temp, Y_temp, batch_size=128, epochs=N_epochs-10, verbose=0,
+            history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=32, epochs=N_epochs, verbose=0,
                                                validation_data=(X_val, Y_val), initial_epoch=10,
                                                callbacks=[cb_earlystopping])
             history_reservoir['epoch'].extend(history_temp.epoch)
@@ -127,13 +131,18 @@ if __name__ == '__main__':
             X_temp, Y_temp = quantizer.get_dataset()
             w_temp = quantizer.get_sample_weights()
 
+            w_temp = w_temp * w_temp.shape[0] / np.sum(w_temp)
+
+            X_temp = min_max_scaler_x.transform(X_temp)
+            Y_temp = min_max_scaler_y.transform(Y_temp)
+
             # Train using validation set from reservoir sampling. Size is already taken into account in
             # generate_reduced_datasets.py
-            history_temp = model_odq.fit(X_temp, Y_temp, batch_size=128, epochs=10, sample_weight=w_temp, verbose=0,
+            history_temp = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=10, sample_weight=w_temp, verbose=0,
                                          validation_data=(X_val, Y_val))
             history_odq = history_temp.history
             history_odq['epoch'] = history_temp.epoch
-            history_temp = model_odq.fit(X_temp, Y_temp, batch_size=128, epochs=N_epochs-10, sample_weight=w_temp, verbose=0,
+            history_temp = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp, verbose=0,
                                          validation_data=(X_val, Y_val), initial_epoch=10,
                                          callbacks=[cb_earlystopping])
             history_odq['epoch'].extend(history_temp.epoch)
@@ -151,8 +160,13 @@ if __name__ == '__main__':
             print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_odq_predict - Y_test)**2))))
             print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
+            # Save all results for subsequent processing
+            directory_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', directory_target)
+            if not os.path.exists(directory_target_full):
+                os.mkdir(directory_target_full)
+
             if FLAG_SAVE_MODEL:
-                with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
+                with open(os.path.join(directory_target_full,
                                        filename_base + 'models_{0}of{1}_reduced.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
                     pkl.dump({'model_odq': model_odq, 'model_reservoir': model_reservoir,
                               'history_odq': history_odq, 'history_reservoir': history_reservoir,
@@ -161,10 +175,13 @@ if __name__ == '__main__':
                               'Y_test': Y_test, 'X_test': X_test,
                               'N_datapoints': N_datapoints}, fid)
             else:
-                with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
+                with open(os.path.join(directory_target_full,
                                        filename_base + 'results_{0}of{1}_reduced.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
                     pkl.dump({'history_odq': history_odq, 'history_reservoir': history_reservoir,
                               'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
                               'score_reservoir': score_reservoir, 'Y_reservoir_predict': Y_reservoir_predict,
                               'Y_test': Y_test, 'X_test': X_test,
                               'N_datapoints': N_datapoints}, fid)
+
+            # Reset Tensorflow session to prevent memory growth
+            K.clear_session()

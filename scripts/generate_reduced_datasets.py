@@ -8,23 +8,24 @@ import matplotlib.pyplot as plt
 from functools import partial
 from sklearn import preprocessing
 import pickle as pkl
-from ml_models import train_test_split
+from ml_models import train_test_split, train_test_split_blocks
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
 
-from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov
+from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, calc_weights_max_norm
 from odq.reservoir import ReservoirSampler
-from odq.data import home_energy, server_power
+from odq.data import home_energy, server_power, metasense
 
 
 if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    DATASET = home_energy # server_power
+    DATASET = server_power # home_energy # server_power
+    directory_target = 'weights_cov_max2_20190401'
     ind_assess = [-1] #2000 * np.arange(1, 35).astype(int)
-    list_compression_ratio = np.append([1.3], 2**(1 + np.arange(7)))[::-1]#2**(1 + np.arange(9))[::-1]
-    N_iterations= 5
+    list_compression_ratio = np.append([4], [])#, 2**(3 + np.arange(8)))[::-1]#2**(1 + np.arange(9))[::-1]
+    N_iterations = 5
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
     TRAIN_VAL_RATIO = 0.8
 
@@ -71,7 +72,10 @@ if __name__ == '__main__':
         N_y = Y_train.shape[1]
 
         # Calculate weights for each column
-        w_max_cov, cov_max = calc_weights_max_cov(X_train, Y_train)
+        w_max_cov, cov_max = calc_weights_max_cov2(X_train, Y_train)
+        w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
+        w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
+        w_ones = np.ones((N_x + N_y))
         w_x = w_max_cov[:N_x]
         w_y = w_max_cov[N_x:]
 
@@ -86,11 +90,20 @@ if __name__ == '__main__':
         N_y = Y_train.shape[1]
 
         # Calculate weights for each column
-        w_max_cov, cov_max = calc_weights_max_cov(X, Y)
+        w_max_cov, cov_max = calc_weights_max_cov2(X, Y)
+        w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
+        w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
+        w_ones = np.ones((N_x + N_y))
         w_x = w_max_cov[:N_x]
         w_y = w_max_cov[N_x:]
 
         # print('cov_max: ' + ', '.join(['{0}:{1:0.3f}'.format(a, b) for a, b in zip(range(len(cov_max)), cov_max)]))
+
+    elif DATASET is metasense:
+        # Load dataset
+        X, Y = DATASET.load()
+        X_train, X_test, Y_train, Y_test = train_test_split_blocks(X, Y, pct_train=TRAIN_TEST_RATIO, n_blocks=3)
+
 
     else:
         print('Invalid dataset {0}'.format(DATASET))
@@ -112,12 +125,15 @@ if __name__ == '__main__':
         # Use same dataset for all compression levels in a given trial
         if DATASET is home_energy:
             X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
-            X_scaled = min_max_scaler_x.fit_transform(X_train)
-            Y_scaled = min_max_scaler_y.fit_transform(Y_train)
+            min_max_scaler_x.fit(X_train)
+            min_max_scaler_y.fit(Y_train)
         else:
+            TRAIN_TEST_RATIO = N_datapoints / (N_datapoints + X_test.shape[0])
             ind_random = np.random.permutation(N_datapoints)
-            X_scaled = min_max_scaler_x.fit_transform(X_train[ind_random])
-            Y_scaled = min_max_scaler_y.fit_transform(Y_train[ind_random])
+            X_train = X_train[ind_random]
+            Y_train = Y_train[ind_random]
+            min_max_scaler_x.fit(X_train)
+            min_max_scaler_y.fit(Y_train)
 
         for compression_ratio in list_compression_ratio:
             N_saved_odq = int(N_datapoints / compression_ratio * (N_x + N_y) / (N_x + N_y + 2) * TRAIN_VAL_RATIO)
@@ -127,7 +143,7 @@ if __name__ == '__main__':
                                                w_x_columns=w_x, w_y_columns=w_y)
             reservoir_sampler = ReservoirSampler(num_datapoints_max=N_saved_res, num_input_features=N_x, num_target_features=N_y)
 
-            for ind, X_new, Y_new in zip(range(N_datapoints), X_scaled, Y_scaled):
+            for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
                 quantizer.add_point(X_new, Y_new)
                 reservoir_sampler.add_point(X_new, Y_new)
 
@@ -139,15 +155,13 @@ if __name__ == '__main__':
                                         title_save='odq_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
                     reservoir_sampler.plot_hist(title_in='Reservoir Hist ({0} samples)'.format(ind), fig_num=20,
                                                 b_save_fig=True, title_save='res_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
-                    """
-                    if FLAG_PLOT:
-                        quantizer.plot('ODQ Sample {0:5d}'.format(ind), ind_dims=[0,1], fig_num=1)
-                        quantizer.plot('ODQ Sample {0:5d}'.format(ind), ind_dims=[0,-3], fig_num=2)
-                        quantizer.plot('ODQ Sample {0:5d}'.format(ind), ind_dims=[1,-3], fig_num=3)
-                    """
 
             print('  Saving reduced datasets')
-            with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized', filename_base + '_{0}_{1}_quantized.pkl'.format(compression_ratio, ind_loop)), 'wb') as fid:
+            directory_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized', directory_target)
+            if not os.path.exists(directory_target_full):
+                os.mkdir(directory_target_full)
+
+            with open(os.path.join(directory_target_full, filename_base + '_{0}_{1}_quantized.pkl'.format(compression_ratio, ind_loop)), 'wb') as fid:
                 pkl.dump({'quantizer': quantizer, 'reservoir_sampler': reservoir_sampler,
                           'Y_train': Y_train, 'Y_test': Y_test,
                           'X_train': X_train, 'X_test': X_test,

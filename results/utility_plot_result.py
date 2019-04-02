@@ -5,18 +5,19 @@ import numpy as np
 from itertools import compress
 
 
-directory = os.path.join(os.path.dirname(__file__), 'raw')
-
-list_filename_base = ['home_energy_data_size_20190327182157']
-filename_target = 'results_home_energy_data_size_20190327182157.pkl'
-
-plot_type = 'Data_Size'
-
 if __name__ == '__main__':
-    if os.path.isfile(os.path.join(os.path.dirname(__file__), filename_target)):
+    directory_target = 'weights_cov_max2_20190401'
+    list_filename_base = ['server_power_data_size_']
+    plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
+    FLAG_SAVE_COMPUTATION = True
+    filename_save = 'results_home_energy_weights_cov_max2_20190401.pkl'
+
+    directory = os.path.join(os.path.dirname(__file__), 'raw', directory_target)
+
+    if FLAG_SAVE_COMPUTATION and os.path.isfile(os.path.join(os.path.dirname(__file__), filename_save)):
         print('Existing results file found. Loading...')
         try:
-            with open(os.path.join(os.path.dirname(__file__), filename_target), 'rb') as fid:
+            with open(os.path.join(os.path.dirname(__file__), filename_save), 'rb') as fid:
                 data_temp = pkl.load(fid)
             data = data_temp['data']
             N_datapoints = data_temp['N_datapoints']
@@ -25,7 +26,10 @@ if __name__ == '__main__':
             print('  ERROR loading results file.')
 
     else:
-        print('Existing results file not found. Generating...')
+        if FLAG_SAVE_COMPUTATION:
+            print('Generating...')
+        else:
+            print('Existing results file not found. Generating...')
 
         # Create an initial list to hold all entries
         data = []
@@ -51,8 +55,9 @@ if __name__ == '__main__':
 
             temp_filename_base = list(compress(list_filename_base, filename_match))[0]
 
-            list_filepieces = file.split(sep=temp_filename_base)[-1].split(sep='_')
-            compression_ratio = float(list_filepieces[1])
+            # list_filepieces = file.split(sep=temp_filename_base)[-1].split(sep='_')
+            list_filepieces = file.split(sep='_')
+            compression_ratio = float(list_filepieces[-5])
             filetype = list_filepieces[-1]
 
             if N_datapoints < 0 and any([dict_key == 'N_datapoints' for dict_key in data_temp.keys()]):
@@ -71,8 +76,12 @@ if __name__ == '__main__':
                 if entry:
                     entry[0]['score_odq'].append(score_odq)
                     entry[0]['score_res'].append(score_res)
+                    entry[0]['history_odq'].append(data_temp['history_odq'])
+                    entry[0]['history_reservoir'].append(data_temp['history_reservoir'])
                 else:
-                    data.append({'compression_ratio': compression_ratio, 'score_odq': [score_odq], 'score_res': [score_res] })
+                    data.append({'compression_ratio': compression_ratio,
+                                 'score_odq': [score_odq], 'score_res': [score_res],
+                                 'history_odq': [data_temp['history_odq']], 'history_reservoir': [data_temp['history_reservoir']]})
 
             elif filetype == 'full.pkl':
                 try:
@@ -93,7 +102,7 @@ if __name__ == '__main__':
                 continue
 
         # Save results to remove need to regenerate
-        with open(os.path.join(os.path.dirname(__file__), filename_target), 'wb') as fid:
+        with open(os.path.join(os.path.dirname(__file__), filename_save), 'wb') as fid:
             pkl.dump({'data':data, 'N_datapoints':N_datapoints}, fid)
 
     # Generate plots for Data Size
@@ -103,6 +112,8 @@ if __name__ == '__main__':
         list_odq_std    = np.array([])
         list_res_mean   = np.array([])
         list_res_std    = np.array([])
+        list_full_mean = 0
+        list_full_std = 1
 
         for data_entry in data:
             if data_entry['compression_ratio'] > 1:
@@ -137,5 +148,29 @@ if __name__ == '__main__':
         plt.grid('on')
         plt.tight_layout()
         plt.show()
+
     elif plot_type == 'Training':
-        print('test')
+        for data_entry in data:
+            for history_odq, history_reservoir in zip(data_entry['history_odq'], data_entry['history_reservoir']):
+                plt.figure()
+                plt.rc('font', family='Liberation Serif', size=14)
+                plt.plot(history_odq['val_mean_squared_error'], 'b')
+                plt.plot(history_reservoir['val_mean_squared_error'], 'r')
+                plt.title('Validation CR = {0}'.format(data_entry['compression_ratio']))
+                plt.legend(('ODQ', 'Reservoir'))
+
+                plt.figure()
+                plt.rc('font', family='Liberation Serif', size=14)
+                plt.plot(history_odq['mean_squared_error'], 'k')
+                plt.plot(history_odq['val_mean_squared_error'], 'b')
+                plt.title('ODQ CR = {0}'.format(data_entry['compression_ratio']))
+                plt.legend(('Train', 'Val'))
+
+                plt.figure()
+                plt.rc('font', family='Liberation Serif', size=14)
+                plt.plot(history_reservoir['mean_squared_error'], 'k')
+                plt.plot(history_reservoir['val_mean_squared_error'], 'b')
+                plt.title('Reservoir CR = {0}'.format(data_entry['compression_ratio']))
+                plt.legend(('Train', 'Val'))
+                plt.show()
+

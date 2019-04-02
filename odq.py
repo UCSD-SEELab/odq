@@ -17,6 +17,27 @@ def dist_L2(v1, m1, w=None):
     return np.sum(((m1 - v1) * w)**2, axis=1)
 
 
+def calc_weights_max_cov2(X, Y):
+    """
+    Calculate the distance weights between the input features and targets. The weights are related to the maximum
+    covariance between a column of X and any column of y, normalized by the variances of X and Y, and the variance of
+    X to normalize for input scale.
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+    cov_max = np.zeros(X.shape[1])
+
+    Y_centered = Y - np.mean(Y, axis=0)
+    X_centered = X - np.mean(X, axis=0)
+
+    for ind_x in range(X.shape[1]):
+        cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
+        cov_max[ind_x] = np.max(np.abs(cov_temp))
+
+    w_max_cov = np.append(cov_max/std_x, np.max(cov_max)/std_y)
+    return w_max_cov, np.append(cov_max, np.max(cov_max))
+
+
 def calc_weights_max_cov(X, Y):
     """
     Calculate the distance weights between the input features and targets. The weights are related to the maximum
@@ -34,8 +55,64 @@ def calc_weights_max_cov(X, Y):
         cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
         cov_max[ind_x] = np.max(np.abs(cov_temp))
 
-    w_max_cov = np.append((1 - cov_max)/std_x, (1 - np.max(cov_max))/std_y)
+    w_max_cov = np.append(np.sqrt(1 - cov_max)/std_x, np.sqrt(1 - np.max(cov_max))/std_y)
     return w_max_cov, np.append(cov_max, np.max(cov_max))
+
+
+def calc_weights_max_norm(X, Y):
+    """
+    Calculate the distance weights between the input features and targets. The weights are related to the maximum
+    covariance between a column of X and any column of y, normalized by the variances of X and Y, and the variance of
+    X to normalize for input scale.
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+    cov_max = np.zeros(X.shape[1])
+
+    Y_centered = Y - np.mean(Y, axis=0)
+    X_centered = X - np.mean(X, axis=0)
+
+    for ind_x in range(X.shape[1]):
+        cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
+        cov_max[ind_x] = np.max(np.abs(cov_temp))
+
+    cov_max_norm = cov_max**2 / np.sum(cov_max**2)
+
+    w_max_cov = np.append((1 - cov_max_norm)/std_x, (1 - np.max(cov_max_norm))/std_y)
+    return w_max_cov, np.append(cov_max_norm, np.max(cov_max_norm))
+
+
+def calc_weights_max_cov_logit(X, Y):
+    """
+    Calculate the distance weights between the input features and targets. The weights are related to the maximum
+    covariance between a column of X and any column of y, normalized by the variances of X and Y, and the variance of
+    X to normalize for input scale.
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+    cov_max = np.zeros(X.shape[1])
+
+    Y_centered = Y - np.mean(Y, axis=0)
+    X_centered = X - np.mean(X, axis=0)
+
+    for ind_x in range(X.shape[1]):
+        cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
+        cov_max[ind_x] = np.max(np.abs(cov_temp))
+
+    cov_max_logit = np.exp(cov_max) / np.sum(np.exp(cov_max))
+
+    w_max_cov = np.append((1 - cov_max_logit)/std_x, (1 - np.max(cov_max_logit))/std_y)
+    return w_max_cov, np.append(cov_max_logit, np.max(cov_max_logit))
+
+
+def calc_weights_unit_var(X, Y):
+    """
+    Calculate the distance weights as 1/std(val) to normalize X and Y to unit variances.
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+    w_unit_var = np.append(1/std_x, 1/std_y)
+    return w_unit_var, []
 
 
 class OnlineDatasetQuantizer(object):
@@ -218,7 +295,6 @@ class OnlineDatasetQuantizer(object):
         """
         Plots distribution in up to 3 dimensions
         """
-
         # TODO Add ind_dims to input variables and update plots to adapt to ind_dims
 
         plt.figure(fig_num)
