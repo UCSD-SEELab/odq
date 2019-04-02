@@ -78,20 +78,30 @@ def train_test_split_blocks(X, Y, pct_train=0.8, n_blocks=3):
     """
     N = X.shape[0]
     N_test = np.round(N*(1 - pct_train)).astype(int)
-    N_block = []
+    list_block_sizes = []
     for _ in range(n_blocks):
-        N_block.append((N_test - sum(N_block)) // (n_blocks - len(N_block)))
+        list_block_sizes.append((N_test - sum(list_block_sizes)) // (n_blocks - len(list_block_sizes)))
 
+    list_ind_test = []
 
-    ind_random = np.random.permutation(N)
+    for block_size in list_block_sizes:
+        ind_rand = np.random.randint(N - 1)
+        ind_block_min = ind_rand - np.floor(block_size / 2).astype(int)
+        ind_block_min = max([0, ind_block_min])
+        ind_block_max = ind_block_min + block_size
 
-    if weights is None:
-        return X[ind_random[:ind_split], :], X[ind_random[ind_split:], :], \
-               Y[ind_random[:ind_split], :], Y[ind_random[ind_split:], :]
-    else:
-        return X[ind_random[:ind_split], :], X[ind_random[ind_split:], :], \
-               Y[ind_random[:ind_split], :], Y[ind_random[ind_split:], :], \
-               weights[ind_random[:ind_split]]
+        while (ind_block_min in list_ind_test) or (ind_block_max in list_ind_test):
+            ind_rand = np.random.randint(N - 1)
+            ind_block_min = ind_rand - np.floor(block_size / 2).astype(int)
+            ind_block_min = max([0, ind_block_min])
+            ind_block_max = ind_block_min + block_size
+
+        list_ind_test.extend(list(range(ind_block_min, ind_block_max)))
+
+    list_ind_train = list(set(np.random.permutation(N)) - set(list_ind_test))
+
+    return X[list_ind_train, :], X[list_ind_test, :], \
+           Y[list_ind_train, :], Y[list_ind_test, :]
 
 
 if __name__ == '__main__':
@@ -100,3 +110,4 @@ if __name__ == '__main__':
 
     x_train, x_test, y_train, y_test = train_test_split_blocks(test_x, test_y, pct_train=0.8, n_blocks=2)
 
+    print('Done')

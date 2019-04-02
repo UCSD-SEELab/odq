@@ -55,7 +55,7 @@ def calc_weights_max_cov(X, Y):
         cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
         cov_max[ind_x] = np.max(np.abs(cov_temp))
 
-    w_max_cov = np.append(np.sqrt(1 - cov_max)/std_x, np.sqrt(1 - np.max(cov_max))/std_y)
+    w_max_cov = np.append(np.sqrt(cov_max)/std_x, np.sqrt(np.max(cov_max))/std_y)
     return w_max_cov, np.append(cov_max, np.max(cov_max))
 
 
@@ -78,7 +78,7 @@ def calc_weights_max_norm(X, Y):
 
     cov_max_norm = cov_max**2 / np.sum(cov_max**2)
 
-    w_max_cov = np.append((1 - cov_max_norm)/std_x, (1 - np.max(cov_max_norm))/std_y)
+    w_max_cov = np.append(cov_max_norm/std_x, np.max(cov_max_norm)/std_y)
     return w_max_cov, np.append(cov_max_norm, np.max(cov_max_norm))
 
 
@@ -101,7 +101,7 @@ def calc_weights_max_cov_logit(X, Y):
 
     cov_max_logit = np.exp(cov_max) / np.sum(np.exp(cov_max))
 
-    w_max_cov = np.append((1 - cov_max_logit)/std_x, (1 - np.max(cov_max_logit))/std_y)
+    w_max_cov = np.append(cov_max_logit/std_x, np.max(cov_max_logit)/std_y)
     return w_max_cov, np.append(cov_max_logit, np.max(cov_max_logit))
 
 

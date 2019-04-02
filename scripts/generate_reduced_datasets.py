@@ -21,10 +21,10 @@ if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    DATASET = server_power # home_energy # server_power
-    directory_target = 'weights_cov_max2_20190401'
+    DATASET = metasense # home_energy # server_power # metasense
+    directory_target = 'metasense_test_cov_max2_20190401'
     ind_assess = [-1] #2000 * np.arange(1, 35).astype(int)
-    list_compression_ratio = np.append([4], [])#, 2**(3 + np.arange(8)))[::-1]#2**(1 + np.arange(9))[::-1]
+    list_compression_ratio = np.append([], 2**(5 + np.arange(6)))[::-1]#2**(1 + np.arange(9))[::-1]
     N_iterations = 5
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
     TRAIN_VAL_RATIO = 0.8
@@ -65,49 +65,34 @@ if __name__ == '__main__':
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
 
     elif DATASET is server_power:
-        # Load dataset
         X_train, Y_train, X_test, Y_test = DATASET.load()
-
-        N_x = X_train.shape[1]
-        N_y = Y_train.shape[1]
-
-        # Calculate weights for each column
-        w_max_cov, cov_max = calc_weights_max_cov2(X_train, Y_train)
-        w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
-        w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
-        w_ones = np.ones((N_x + N_y))
-        w_x = w_max_cov[:N_x]
-        w_y = w_max_cov[N_x:]
-
-        # print('cov_max: ' + ', '.join(['{0}:{1:0.3f}'.format(a, b) for a, b in zip(range(len(cov_max)), cov_max)]))
+        TRAIN_TEST_RATIO = Y_train.shape[0] / (Y_train.shape[0] + Y_test.shape[0])
+        ind_random = np.random.permutation(Y_train.shape[0])
+        X_train = X_train[ind_random]
+        Y_train = Y_train[ind_random]
 
     elif DATASET is home_energy:
-        # Load dataset
         X, Y = DATASET.load()
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
 
-        N_x = X_train.shape[1]
-        N_y = Y_train.shape[1]
-
-        # Calculate weights for each column
-        w_max_cov, cov_max = calc_weights_max_cov2(X, Y)
-        w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
-        w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
-        w_ones = np.ones((N_x + N_y))
-        w_x = w_max_cov[:N_x]
-        w_y = w_max_cov[N_x:]
-
-        # print('cov_max: ' + ', '.join(['{0}:{1:0.3f}'.format(a, b) for a, b in zip(range(len(cov_max)), cov_max)]))
-
     elif DATASET is metasense:
-        # Load dataset
         X, Y = DATASET.load()
-        X_train, X_test, Y_train, Y_test = train_test_split_blocks(X, Y, pct_train=TRAIN_TEST_RATIO, n_blocks=3)
-
+        X_train, X_test, Y_train, Y_test = train_test_split_blocks(X, Y, pct_train=TRAIN_TEST_RATIO, n_blocks=10)
 
     else:
         print('Invalid dataset {0}'.format(DATASET))
         sys.exit()
+
+    # Calculate weights for ODQ
+    N_x = X_train.shape[1]
+    N_y = Y_train.shape[1]
+
+    w_max_cov, cov_max = calc_weights_max_cov2(X, Y)
+    w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
+    w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
+    w_ones = np.ones((N_x + N_y))
+    w_x = w_max_cov[:N_x]
+    w_y = w_max_cov[N_x:]
 
     # Normalize data to between 0 and 1 for future machine learning
     min_max_scaler_x = preprocessing.MinMaxScaler()
@@ -122,18 +107,22 @@ if __name__ == '__main__':
     ind_print = int(N_datapoints // 10)* np.arange(1, 11).astype(int)
 
     for ind_loop in range(N_iterations):
-        # Use same dataset for all compression levels in a given trial
-        if DATASET is home_energy:
-            X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
-            min_max_scaler_x.fit(X_train)
-            min_max_scaler_y.fit(Y_train)
-        else:
-            TRAIN_TEST_RATIO = N_datapoints / (N_datapoints + X_test.shape[0])
-            ind_random = np.random.permutation(N_datapoints)
-            X_train = X_train[ind_random]
-            Y_train = Y_train[ind_random]
-            min_max_scaler_x.fit(X_train)
-            min_max_scaler_y.fit(Y_train)
+        # Use same dataset for all compression levels in a given trial. Use loaded data for first loop, otherwise,
+        # reshuffle the training dataset.
+        if not(ind_loop == 0):
+            if DATASET is home_energy:
+                X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
+
+            elif DATASET is metasense:
+                X_train, X_test, Y_train, Y_test = train_test_split_blocks(X, Y, pct_train=TRAIN_TEST_RATIO, n_blocks=10)
+
+            elif DATASET is server_power:
+                ind_random = np.random.permutation(N_datapoints)
+                X_train = X_train[ind_random]
+                Y_train = Y_train[ind_random]
+
+        min_max_scaler_x.fit(X_train)
+        min_max_scaler_y.fit(Y_train)
 
         for compression_ratio in list_compression_ratio:
             N_saved_odq = int(N_datapoints / compression_ratio * (N_x + N_y) / (N_x + N_y + 2) * TRAIN_VAL_RATIO)

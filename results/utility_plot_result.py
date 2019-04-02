@@ -6,11 +6,11 @@ from itertools import compress
 
 
 if __name__ == '__main__':
-    directory_target = 'weights_cov_max2_20190401'
-    list_filename_base = ['server_power_data_size_']
+    directory_target = 'metasense_test_cov_max2_20190401'
+    list_filename_base = ['metasense_data_size_']
     plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
     FLAG_SAVE_COMPUTATION = True
-    filename_save = 'results_home_energy_weights_cov_max2_20190401.pkl'
+    filename_save = 'results_metasense_weights_cov_max2_20190401.pkl'
 
     directory = os.path.join(os.path.dirname(__file__), 'raw', directory_target)
 

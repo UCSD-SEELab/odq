@@ -24,9 +24,9 @@ if __name__ == '__main__':
     FLAG_SAVE_MODEL = False
     FLAG_TRAIN_MODEL = False
     directory_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
-    directory_target = 'weights_cov_max2_20190401'
+    directory_target = 'metasense_test_cov_max2_20190401'
 
-    N_trials = 1
+    N_trials = 5
     TRAIN_VAL_RATIO = 0.8
 
     # np.random.seed(1237)
