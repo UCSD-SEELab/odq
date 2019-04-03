@@ -13,7 +13,7 @@ from ml_models import train_test_split, train_test_split_blocks
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
 
 from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, \
-                    calc_weights_max_norm, calc_weights_max_cov_gauss
+                    calc_weights_max_norm, calc_weights_max_cov_gauss, calc_weights_pr_squeeze
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power, metasense
 
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    DATASET = home_energy # home_energy # server_power # metasense
+    DATASET = server_power # home_energy # server_power # metasense
     directory_target = 'home_energy_test_cov_max_gauss_20190402'
     ind_assess = [-1] #2000 * np.arange(1, 35).astype(int)
     list_compression_ratio = np.append([], 2**(5 + np.arange(6)))[::-1]#2**(1 + np.arange(9))[::-1]
@@ -116,6 +116,7 @@ if __name__ == '__main__':
         w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
         w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
         w_max_cov_gauss, cov_max_gauss = calc_weights_max_cov_gauss(X_train, Y_train)
+        w_pr_squeeze, cov_pr_squeeze = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
         w_ones = np.ones((N_x + N_y))
         w_x = w_max_cov[:N_x]
         w_y = w_max_cov[N_x:]

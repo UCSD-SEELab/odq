@@ -140,6 +140,47 @@ def calc_weights_unit_var(X, Y):
     return w_unit_var, []
 
 
+def calc_weights_pr_squeeze(X, Y, depth=4):
+    """
+    Calculate the distance weights using a squeezed version based on projection pursuit
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+
+    Y_centered = Y - np.mean(Y, axis=0)
+    X_centered = X - np.mean(X, axis=0)
+
+    list_ind_sel = []
+
+    # Perform projection pursuit to determine most important features to use for weight determination
+    Y_res = Y_centered
+    for ind_d in range(depth):
+        print('  Unexplained: {0:0.2f}'.format(np.sqrt(np.sum(Y_res[:, ]**2))))
+        cov_max = np.zeros(X.shape[1])
+        for ind_x in range(X.shape[1]):
+            # If already selected for use, skip and continue
+            if ind_x in list_ind_sel:
+                continue
+            cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
+            cov_max[ind_x] = np.max(np.abs(cov_temp))
+
+        ind_max = np.argmax(cov_max)
+        Y_exp = np.dot(Y_res.transpose(), X_centered[:, ind_max]) / np.dot(X_centered[:, ind_max].transpose(), X_centered[:, ind_max]) * X_centered[:, ind_max]
+        Y_res = Y_res - Y_exp[:, np.newaxis]
+        list_ind_sel.append(ind_max)
+
+    cov_max = np.zeros(X.shape[1])
+    for ind_sel in list_ind_sel:
+        cov_temp = np.matmul(X_centered[:, ind_sel:ind_sel + 1].transpose(), Y_centered) / X.shape[0] / std_x[ind_sel] / std_y
+        cov_max[ind_sel] = np.max(np.abs(cov_temp))
+
+    w_cols = cov_max / np.sum(cov_max)
+
+    w_pr_squeeze = np.append(w_cols/std_x, np.max(w_cols)/std_y)
+    return w_pr_squeeze, w_cols / np.sum(w_cols)
+
+
+
 class OnlineDatasetQuantizer(object):
     def __init__(self, num_datapoints_max, num_input_features, num_target_features, b_save_dist=True, b_save_density=True, w_x_columns=None, w_y_columns=None):
         self.ind_max = num_datapoints_max - 1
