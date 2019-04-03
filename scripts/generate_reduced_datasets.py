@@ -12,7 +12,8 @@ from ml_models import train_test_split, train_test_split_blocks
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
 
-from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, calc_weights_max_norm
+from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, \
+                    calc_weights_max_norm, calc_weights_max_cov_gauss
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power, metasense
 
@@ -21,8 +22,8 @@ if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    DATASET = metasense # home_energy # server_power # metasense
-    directory_target = 'metasense_test_cov_max2_20190401'
+    DATASET = home_energy # home_energy # server_power # metasense
+    directory_target = 'home_energy_test_cov_max_gauss_20190402'
     ind_assess = [-1] #2000 * np.arange(1, 35).astype(int)
     list_compression_ratio = np.append([], 2**(5 + np.arange(6)))[::-1]#2**(1 + np.arange(9))[::-1]
     N_iterations = 5
@@ -83,17 +84,6 @@ if __name__ == '__main__':
         print('Invalid dataset {0}'.format(DATASET))
         sys.exit()
 
-    # Calculate weights for ODQ
-    N_x = X_train.shape[1]
-    N_y = Y_train.shape[1]
-
-    w_max_cov, cov_max = calc_weights_max_cov2(X, Y)
-    w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
-    w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
-    w_ones = np.ones((N_x + N_y))
-    w_x = w_max_cov[:N_x]
-    w_y = w_max_cov[N_x:]
-
     # Normalize data to between 0 and 1 for future machine learning
     min_max_scaler_x = preprocessing.MinMaxScaler()
     min_max_scaler_y = preprocessing.MinMaxScaler()
@@ -120,6 +110,15 @@ if __name__ == '__main__':
                 ind_random = np.random.permutation(N_datapoints)
                 X_train = X_train[ind_random]
                 Y_train = Y_train[ind_random]
+
+        # Generate new sets of weights for selected training set
+        w_max_cov, cov_max = calc_weights_max_cov2(X_train, Y_train)
+        w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
+        w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
+        w_max_cov_gauss, cov_max_gauss = calc_weights_max_cov_gauss(X_train, Y_train)
+        w_ones = np.ones((N_x + N_y))
+        w_x = w_max_cov[:N_x]
+        w_y = w_max_cov[N_x:]
 
         min_max_scaler_x.fit(X_train)
         min_max_scaler_y.fit(Y_train)

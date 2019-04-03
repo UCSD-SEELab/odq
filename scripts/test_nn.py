@@ -119,7 +119,7 @@ if __name__ == '__main__':
 
             if FLAG_SAVE_MODEL:
                 with open(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
-                                       filename_base + 'model_{0}of{1}_full.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
+                                       filename_base + 'model_{0}of{1_full.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
                     pkl.dump({'model_full': model_full, 'history_full':history_full, 'score_full': score_full,
                               'Y_full_predict': Y_full_predict, 'Y_test': Y_test, 'X_test': X_test,
                               'N_datapoints': N_datapoints + Y_test.shape[0]}, fid)

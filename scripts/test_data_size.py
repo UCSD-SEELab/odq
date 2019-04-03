@@ -8,14 +8,14 @@ import matplotlib.pyplot as plt
 from keras.callbacks import EarlyStopping
 from keras import backend as K
 
-from ml_models import generate_model_server_power, generate_model_home_energy, train_test_split
+from ml_models import generate_model_server_power, generate_model_home_energy, generate_model_metasense, train_test_split, train_test_split_blocks
 import pickle as pkl
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
 
 from odq.odq import OnlineDatasetQuantizer
 from odq.reservoir import ReservoirSampler
-from odq.data import home_energy, server_power
+from odq.data import home_energy, server_power, metasense
 
 
 if __name__ == '__main__':
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     directory_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
     directory_target = 'metasense_test_cov_max2_20190401'
 
-    N_trials = 5
+    N_trials = 3
     TRAIN_VAL_RATIO = 0.8
 
     # np.random.seed(1237)
@@ -54,7 +54,10 @@ if __name__ == '__main__':
             Y_test = data_temp['Y_test']
 
             filename_parts = file.split('_')
-            DATASET = eval('{0}_{1}'.format(filename_parts[0], filename_parts[1]))
+            if filename_parts[1] == 'data':
+                DATASET = eval('{0}'.format(filename_parts[0]))
+            else:
+                DATASET = eval('{0}_{1}'.format(filename_parts[0], filename_parts[1]))
             compression_ratio = float(filename_parts[-3])
             print('  SUCCESS')
         except:
@@ -77,7 +80,7 @@ if __name__ == '__main__':
 
             if os.path.isfile(os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
                                            directory_target,
-                                           filename_base + 'results_{0}of{1}_reduced.pkl'.format(ind_loop, N_trials))):
+                                           filename_base + 'results_trial{0}_reduced.pkl'.format(ind_loop))):
                 print('  File already processed')
                 continue
 
@@ -88,9 +91,14 @@ if __name__ == '__main__':
             if DATASET is server_power:
                 model_odq = generate_model_server_power(N_x, N_y)
                 model_reservoir = generate_model_server_power(N_x, N_y)
+
             elif DATASET is home_energy:
                 model_odq = generate_model_home_energy(N_x, N_y)
                 model_reservoir = generate_model_home_energy(N_x, N_y)
+
+            elif DATASET is metasense:
+                model_odq = generate_model_metasense(N_x, N_y)
+                model_reservoir = generate_model_metasense(N_x, N_y)
 
             # Perform training from reservoir data first, saving the validation set
             time_start = time.time()
@@ -122,9 +130,10 @@ if __name__ == '__main__':
 
             Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
 
-            print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2))))
-            print('    Time: {0:0.2f} s'.format(time.time() - time_start))
+            results_reservoir_rmse = np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2, axis=0))
 
+            print('    RMSE: {0}'.format(np.array2string(results_reservoir_rmse, precision=2, suppress_small=True)))
+            print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
             time_start = time.time()
             print('    Generating model from ODQ-reduced Data')
@@ -157,7 +166,9 @@ if __name__ == '__main__':
 
             Y_odq_predict = min_max_scaler_y.inverse_transform(model_odq.predict(min_max_scaler_x.transform(X_test)))
 
-            print('    RMSE: {0:0.2f}'.format(np.sqrt(np.mean((Y_odq_predict - Y_test)**2))))
+            results_odq_rmse = np.sqrt(np.mean((Y_odq_predict - Y_test)**2, axis=0))
+
+            print('    RMSE: {0}'.format(np.array2string(results_odq_rmse, precision=2, suppress_small=True)))
             print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
             # Save all results for subsequent processing
@@ -167,7 +178,7 @@ if __name__ == '__main__':
 
             if FLAG_SAVE_MODEL:
                 with open(os.path.join(directory_target_full,
-                                       filename_base + 'models_{0}of{1}_reduced.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
+                                       filename_base + 'models_trial{0}_reduced.pkl'.format(ind_loop)), 'wb') as fid:
                     pkl.dump({'model_odq': model_odq, 'model_reservoir': model_reservoir,
                               'history_odq': history_odq, 'history_reservoir': history_reservoir,
                               'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
@@ -176,7 +187,7 @@ if __name__ == '__main__':
                               'N_datapoints': N_datapoints}, fid)
             else:
                 with open(os.path.join(directory_target_full,
-                                       filename_base + 'results_{0}of{1}_reduced.pkl'.format(ind_loop, N_trials)), 'wb') as fid:
+                                       filename_base + 'results_trial{0}_reduced.pkl'.format(ind_loop)), 'wb') as fid:
                     pkl.dump({'history_odq': history_odq, 'history_reservoir': history_reservoir,
                               'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
                               'score_reservoir': score_reservoir, 'Y_reservoir_predict': Y_reservoir_predict,
