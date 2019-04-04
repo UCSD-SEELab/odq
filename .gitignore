@@ -102,3 +102,9 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Processing results
+results/img
+results/quantized
+results/raw
+results/*.zip
