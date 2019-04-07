@@ -6,11 +6,11 @@ from itertools import compress
 
 
 if __name__ == '__main__':
-    directory_target = 'metasense_test_cov_max2_20190401'
-    list_filename_base = ['metasense_data_size_']
+    directory_target = 'metasense_cov_max2_20190403'
+    list_filename_base = ['metasense']
     plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
     FLAG_SAVE_COMPUTATION = True
-    filename_save = 'results_metasense_weights_cov_max2_20190401.pkl'
+    filename_save = 'results_metasense_cov_max2_20190403.pkl'
 
     directory = os.path.join(os.path.dirname(__file__), 'raw', directory_target)
 
@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
             # list_filepieces = file.split(sep=temp_filename_base)[-1].split(sep='_')
             list_filepieces = file.split(sep='_')
-            compression_ratio = float(list_filepieces[-5])
+            compression_ratio = float(list_filepieces[-7])
             filetype = list_filepieces[-1]
 
             if N_datapoints < 0 and any([dict_key == 'N_datapoints' for dict_key in data_temp.keys()]):

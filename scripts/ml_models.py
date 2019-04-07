@@ -1,15 +1,16 @@
 import numpy as np
 
 from keras import Model
-from keras.layers import Input, Dense, Dropout
-from keras.optimizers import Adam
+from keras.layers import Input, Dense, Dropout, GaussianNoise
+from keras.optimizers import Adam, SGD
 
-def generate_model_server_power(N_x, N_y):
+def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.0001):
     """
     Create neural network model for the server power dataset
     """
     layer_input = Input(shape=(N_x, )) # Input features
-    layer1 = Dense(200, activation='relu')(layer_input)
+    layer1 = GaussianNoise(stddev=std_noise)(layer_input)
+    layer1 = Dense(200, activation='relu')(layer1)
     layer1 = Dropout(0.5)(layer1)
     layer1 = Dense(200, activation='relu')(layer1)
     layer1 = Dropout(0.5)(layer1)
@@ -17,7 +18,7 @@ def generate_model_server_power(N_x, N_y):
     layer2 = Dropout(0.5)(layer2)
     layer_out = Dense(N_y)(layer2)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
-    optimizer_adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    optimizer_adam = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     model_nn.compile(optimizer=optimizer_adam, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 
@@ -36,7 +37,7 @@ def generate_model_home_energy(N_x, N_y):
     layer2 = Dropout(0.5)(layer2)
     layer_out = Dense(N_y)(layer2)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
-    optimizer_adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    optimizer_adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
     model_nn.compile(optimizer=optimizer_adam, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 

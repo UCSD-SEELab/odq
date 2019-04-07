@@ -17,6 +17,30 @@ def dist_L2(v1, m1, w=None):
     return np.sum(((m1 - v1) * w)**2, axis=1)
 
 
+def calc_weights_incorrect(X, Y):
+    """
+    Calculate the distance weights between the input features and targets. The weights are related to the maximum
+    covariance between a column of X and any column of y, normalized by the variances of X and Y, and the variance of
+    X to normalize for input scale.
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+    cov_max = np.zeros(X.shape[1])
+
+    Y_centered = Y - np.mean(Y, axis=0)
+    X_centered = X - np.mean(X, axis=0)
+
+    for ind_x in range(X.shape[1]):
+        cov_temp = np.matmul(X_centered[:, ind_x:ind_x+1].transpose(), Y_centered) / X.shape[0] / std_x[ind_x] / std_y
+        cov_max[ind_x] = np.max(np.abs(cov_temp))
+
+    range_x = np.max(X) - np.min(X)
+    range_y = np.max(Y) - np.min(Y)
+
+    w_max_cov = np.append((1 - cov_max)/std_x/range_x, (1 - np.max(cov_max))/std_y/range_y)
+    return w_max_cov, np.append(cov_max, np.max(cov_max))
+
+
 def calc_weights_max_cov2(X, Y):
     """
     Calculate the distance weights between the input features and targets. The weights are related to the maximum
