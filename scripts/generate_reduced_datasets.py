@@ -69,7 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, help='Target directory to save generated files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of iterations to generate.', default=[5])
     parser.add_argument('--dataset', type=str, help='Dataset to use.')
-    parser.add_argument('--w_type', type=int, nargs=1, help='Type of weight to use in ODQ (1: ones, 2: cov_max2, 3: unit_var, 4: pr_squeeze', default=[3])
+    parser.add_argument('--w_type', type=int, nargs='+', help='Type of weight to use in ODQ (1: ones, 2: cov_max2, 3: unit_var, 4: pr_squeeze', default=[3])
     parser.add_argument('--brd', type=int, nargs=1, help='Board number for MetaSense tests', default=[11])
 
     args = parser.parse_args()
@@ -95,10 +95,10 @@ if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    ind_assess = [-1] #2000 * np.arange(1, 35).astype(int)
+    ind_assess = 5000 * np.arange(1, 35).astype(int)
     list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1]
     N_iterations = args.N[0]
-    weight_type = args.w_type[0]
+    list_weight_type = args.w_type[0]
     metasense_brd = args.brd[0]
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
     TRAIN_VAL_RATIO = 0.8
@@ -184,45 +184,65 @@ if __name__ == '__main__':
                 X_train = X_train[ind_random]
                 Y_train = Y_train[ind_random]
 
-        # Generate new sets of weights for selected training set
-        if weight_type <= 1:
-            w_list = np.ones((N_x + N_y))
-            w_imp = w_list / sum(w_list)
-        elif weight_type == 2:
-            w_list, w_imp = calc_weights_max_cov2(X_train, Y_train)
-        elif weight_type == 3:
-            w_list, w_imp = calc_weights_unit_var(X_train, Y_train)
-        elif weight_type == 4:
-            w_list, w_imp = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
-        elif weight_type >= 5:
-            w_list, w_imp = calc_weights_imbalanced(X_train, Y_train)
-
-        w_x = w_list[:N_x]
-        w_y = w_list[N_x:]
-
         min_max_scaler_x.fit(X_train)
         min_max_scaler_y.fit(Y_train)
 
+        # Generate new sets of weights for selected training set
+        dict_out = {'Y_train': Y_train, 'Y_test': Y_test, 'X_train': X_train, 'X_test': X_test,
+                    'min_max_scaler_x': min_max_scaler_x, 'min_max_scaler_y': min_max_scaler_y,
+                    'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'TRAIN_TEST_RATIO': TRAIN_TEST_RATIO}
+
+        list_w_x = []
+        list_w_y = []
+        list_w_imp = []
+
+        for ind, weight_type in enumerate(list_weight_type):
+            if weight_type <= 1:
+                w_list = np.ones((N_x + N_y))
+                w_imp = w_list / sum(w_list)
+            elif weight_type == 2:
+                w_list, w_imp = calc_weights_max_cov2(X_train, Y_train)
+            elif weight_type == 3:
+                w_list, w_imp = calc_weights_unit_var(X_train, Y_train)
+            elif weight_type == 4:
+                w_list, w_imp = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
+            elif weight_type >= 5:
+                w_list, w_imp = calc_weights_imbalanced(X_train, Y_train)
+
+            list_w_x.append(w_list[:N_x])
+            list_w_y.append(w_list[N_x:])
+            list_w_imp.append(w_imp)
+
         for compression_ratio in list_compression_ratio:
+            dict_out['quantizers'] = []
             N_saved_odq = int(N_datapoints / compression_ratio * (N_x + N_y) / (N_x + N_y + 2) * TRAIN_VAL_RATIO)
             N_saved_res = int(N_datapoints / compression_ratio)
             print('\n\nCompression Ratio {0}: {1} -> odq:{2} res:{3}'.format(compression_ratio, N_datapoints, N_saved_odq, N_saved_res))
-            quantizer = OnlineDatasetQuantizer(num_datapoints_max=N_saved_odq, num_input_features=N_x, num_target_features=N_y,
-                                               w_x_columns=w_x, w_y_columns=w_y)
+            list_quantizers = []
+            for w_x, w_y in zip(list_w_x, list_w_y):
+                list_quantizers.append(OnlineDatasetQuantizer(num_datapoints_max=N_saved_odq, num_input_features=N_x, num_target_features=N_y,
+                                                   w_x_columns=w_x, w_y_columns=w_y))
+
             reservoir_sampler = ReservoirSampler(num_datapoints_max=N_saved_res, num_input_features=N_x, num_target_features=N_y)
 
             for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
-                quantizer.add_point(X_new, Y_new)
+                for quantizer in list_quantizers:
+                    quantizer.add_point(X_new, Y_new)
                 reservoir_sampler.add_point(X_new, Y_new)
 
                 if ind in ind_print:
                     print('  {0} / {1}'.format(ind, N_datapoints))
 
                 if (ind in ind_assess):
-                    quantizer.plot_hist(title_in='ODQ Hist ({0} samples)'.format(ind), fig_num=10, b_save_fig=True,
-                                        title_save='odq_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
+                    for quantizer, w_type in zip(list_quantizers, list_weight_type):
+                        quantizer.plot_hist(title_in='ODQ Hist (w_type {1}, {0} samples)'.format(ind, w_type), fig_num=10, b_save_fig=True,
+                                            title_save='odq_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
                     reservoir_sampler.plot_hist(title_in='Reservoir Hist ({0} samples)'.format(ind), fig_num=20,
                                                 b_save_fig=True, title_save='res_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
+
+            for quantizer, w_x, w_y, w_imp, w_type in zip(list_quantizers, list_w_x, list_w_y, list_w_imp, list_weight_type):
+                dict_out['quantizers'].append({'quantizer':quantizer, 'w_x': w_x, 'w_y': w_y, 'w_imp': w_imp, 'w_type': w_type})
+            dict_out['reservoir_sampler'] = reservoir_sampler
 
             print('  Saving reduced datasets')
             directory_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized', directory_target)
@@ -230,9 +250,4 @@ if __name__ == '__main__':
                 os.mkdir(directory_target_full)
 
             with open(os.path.join(directory_target_full, filename_base + '_{0}_{1}_quantized.pkl'.format(compression_ratio, ind_loop)), 'wb') as fid:
-                pkl.dump({'quantizer': quantizer, 'reservoir_sampler': reservoir_sampler,
-                          'Y_train': Y_train, 'Y_test': Y_test,
-                          'X_train': X_train, 'X_test': X_test,
-                          'min_max_scaler_x': min_max_scaler_x, 'min_max_scaler_y': min_max_scaler_y,
-                          'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'TRAIN_TEST_RATIO': TRAIN_TEST_RATIO,
-                          'w_x': w_x, 'w_y': w_y, 'w_imp': w_imp}, fid)
+                pkl.dump({dict_out: w_imp}, fid)
