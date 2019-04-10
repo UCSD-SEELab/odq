@@ -14,7 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, \
                     calc_weights_max_norm, calc_weights_max_cov_gauss, calc_weights_pr_squeeze, calc_weights_incorrect, \
-                    calc_weights_imbalanced
+                    calc_weights_imbalanced, calc_weights_x_y_tradeoff, calc_weights_singlex, calc_weights_singley
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power, metasense
 
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     ind_assess = 5000 * np.arange(1, 35).astype(int)
     list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1]
     N_iterations = args.N[0]
-    list_weight_type = args.w_type[0]
+    list_weight_type = args.w_type
     metasense_brd = args.brd[0]
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
     TRAIN_VAL_RATIO = 0.8
@@ -206,8 +206,20 @@ if __name__ == '__main__':
                 w_list, w_imp = calc_weights_unit_var(X_train, Y_train)
             elif weight_type == 4:
                 w_list, w_imp = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
-            elif weight_type >= 5:
+            elif weight_type == 5:
                 w_list, w_imp = calc_weights_imbalanced(X_train, Y_train)
+            elif weight_type == 6:
+                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.999)
+            elif weight_type == 7:
+                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.99)
+            elif weight_type == 8:
+                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.01)
+            elif weight_type == 9:
+                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.001)
+            elif weight_type == 10:
+                w_list, w_imp = calc_weights_singlex(X_train, Y_train, ind_x=0)
+            elif weight_type == 11:
+                w_list, w_imp = calc_weights_singley(X_train, Y_train, ind_y=0)
 
             list_w_x.append(w_list[:N_x])
             list_w_y.append(w_list[N_x:])

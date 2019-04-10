@@ -250,6 +250,49 @@ def calc_weights_imbalanced(X, Y):
     return w_cols, w_imp
 
 
+def calc_weights_x_y_tradeoff(X, Y, pct=0.99):
+    """
+    Create weights for the distance function that
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+
+    w_cols = np.append((pct) / std_x, (1 - pct) / std_y)
+
+    w_imp = w_cols / np.sum(w_cols)
+
+    return w_cols, w_imp
+
+
+def calc_weights_singlex(X, Y, ind_x=0):
+    """
+    Create weights for the distance function that
+    """
+    std_x = np.std(X, axis=0)
+
+    w_cols = np.zeros(X.shape[-1] + Y.shape[-1])
+    w_cols[ind_x] = 1 / std_x[ind_x]
+
+    w_imp = w_cols / np.sum(w_cols)
+
+    return w_cols, w_imp
+
+
+def calc_weights_singley(X, Y, ind_y=0):
+    """
+    Create weights for the distance function that
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+
+    w_cols = np.zeros(X.shape[-1] + Y.shape[-1])
+    w_cols[X.shape[-1] + ind_y] = 1 / std_y[ind_y]
+
+    w_imp = w_cols / np.sum(w_cols)
+
+    return w_cols, w_imp
+
+
 class OnlineDatasetQuantizer(object):
     def __init__(self, num_datapoints_max, num_input_features, num_target_features, b_save_dist=True, b_save_density=True, w_x_columns=None, w_y_columns=None):
         self.ind_max = num_datapoints_max - 1
