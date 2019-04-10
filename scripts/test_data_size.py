@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
     TRAIN_VAL_RATIO = 0.8
     list_lr = [0.0001] #[0.001, 0.0001, 0.00001]
-    list_std_noise = [0.01, 0.001]
+    list_std_noise = [0.001]
 
     plt.ion()
 
@@ -79,7 +79,7 @@ if __name__ == '__main__':
                 data_temp = pkl.load(fid)
             min_max_scaler_x = data_temp['min_max_scaler_x']
             min_max_scaler_y = data_temp['min_max_scaler_y']
-            list_quantizers = data_temp['list_quantizers']
+            list_quantizers = data_temp['quantizers']
             reservoir_sampler = data_temp['reservoir_sampler']
             X_train = data_temp['X_train']
             Y_train = data_temp['Y_train']
