@@ -175,6 +175,10 @@ if __name__ == '__main__':
                     print('    RMSE: {0}'.format(np.array2string(results_reservoir_rmse, precision=2, suppress_small=True)))
                     print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
+                    dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
+                                'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
+                                'N_datapoints': N_datapoints}
+
                     for dict_quantizer, model_odq in zip(list_quantizers, list_model_odq):
                         quantizer = dict_quantizer['quantizer']
                         w_x = dict_quantizer['w_x']
@@ -218,51 +222,25 @@ if __name__ == '__main__':
                         print('    RMSE: {0}'.format(np.array2string(results_odq_rmse, precision=2, suppress_small=True)))
                         print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
+                        dict_out['history_odq_w{0}'.format(w_type)] = history_odq
+                        dict_out['score_odq_w{0}'.format(w_type)] = score_odq
+                        dict_out['Y_odq_predict_w{0}'.format(w_type)] = Y_odq_predict
+
                         # Save all results for subsequent processing
                         directory_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', directory_target)
                         if not os.path.exists(directory_target_full):
                             os.mkdir(directory_target_full)
 
-                        if FLAG_SAVE_MODEL:
-                            with open(os.path.join(directory_target_full,
-                                                   filename_base + 'lr{1}_std{2}_wtype{3}_models_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, w_type)), 'wb') as fid:
-                                pkl.dump({'model_odq': model_odq, 'model_reservoir': model_reservoir,
-                                          'history_odq': history_odq, 'history_reservoir': history_reservoir,
-                                          'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
-                                          'score_reservoir': score_reservoir, 'Y_reservoir_predict': Y_reservoir_predict,
-                                          'Y_test': Y_test, 'X_test': X_test,
-                                          'N_datapoints': N_datapoints}, fid)
-                        else:
-                            with open(os.path.join(directory_target_full,
-                                                   filename_base + 'lr{1}_std{2}_wtype{3}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, w_type)), 'wb') as fid:
-                                pkl.dump({'history_odq': history_odq, 'history_reservoir': history_reservoir,
-                                          'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
-                                          'score_reservoir': score_reservoir, 'Y_reservoir_predict': Y_reservoir_predict,
-                                          'Y_test': Y_test, 'X_test': X_test,
-                                          'N_datapoints': N_datapoints}, fid)
-
-                        if FLAG_PLOT:
-                            plt.figure()
-                            plt.rc('font', family='Liberation Serif', size=14)
-                            plt.plot(history_odq['val_mean_squared_error'], 'b')
-                            plt.plot(history_reservoir['val_mean_squared_error'], 'r')
-                            plt.title('Validation CR = {0}'.format(compression_ratio))
-                            plt.legend(('ODQ', 'Reservoir'))
-
-                            plt.figure()
-                            plt.rc('font', family='Liberation Serif', size=14)
-                            plt.plot(history_odq['mean_squared_error'], 'k')
-                            plt.plot(history_odq['val_mean_squared_error'], 'b')
-                            plt.title('ODQ CR = {0}'.format(compression_ratio))
-                            plt.legend(('Train', 'Val'))
-
-                            plt.figure()
-                            plt.rc('font', family='Liberation Serif', size=14)
-                            plt.plot(history_reservoir['mean_squared_error'], 'k')
-                            plt.plot(history_reservoir['val_mean_squared_error'], 'b')
-                            plt.title('Reservoir CR = {0}'.format(compression_ratio))
-                            plt.legend(('Train', 'Val'))
-                            plt.show(block=True)
+                    if FLAG_SAVE_MODEL:
+                        with open(os.path.join(directory_target_full,
+                                               filename_base + 'lr{1}_std{2}_models_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
+                            dict_out['model_odq'] = model_odq
+                            dict_out['model_reservoir'] = model_reservoir
+                            pkl.dump(dict_out, fid)
+                    else:
+                        with open(os.path.join(directory_target_full,
+                                               filename_base + 'lr{1}_std{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
+                            pkl.dump(dict_out, fid)
 
                     # Reset Tensorflow session to prevent memory growth
                     K.clear_session()
