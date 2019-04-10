@@ -3,14 +3,15 @@ import pickle as pkl
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import compress
+import argparse
 
 
 if __name__ == '__main__':
-    directory_target = 'metasense_cov_max2_20190403'
+    directory_target = 'metasense12_imbalanced_20190407'
     list_filename_base = ['metasense']
     plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
     FLAG_SAVE_COMPUTATION = True
-    filename_save = 'results_metasense_cov_max2_20190403.pkl'
+    filename_save = 'results_metasense12_imbalanced_20190407.pkl'
 
     directory = os.path.join(os.path.dirname(__file__), 'raw', directory_target)
 

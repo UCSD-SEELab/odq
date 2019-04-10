@@ -38,7 +38,11 @@ def calc_weights_incorrect(X, Y):
     range_y = np.max(Y) - np.min(Y)
 
     w_max_cov = np.append((1 - cov_max)/std_x/range_x, (1 - np.max(cov_max))/std_y/range_y)
-    return w_max_cov, np.append(cov_max, np.max(cov_max))
+
+    w_imp = np.append((1 - cov_max)/range_x, (1 - np.max(cov_max))/range_y)
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_max_cov, w_imp
 
 
 def calc_weights_max_cov2(X, Y):
@@ -60,7 +64,11 @@ def calc_weights_max_cov2(X, Y):
 
     w_cols = cov_max
     w_max_cov = np.append(w_cols/std_x, np.max(w_cols)/std_y)
-    return w_max_cov, w_cols / np.sum(w_cols)
+
+    w_imp = np.append(w_cols, np.max(w_cols))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_max_cov, w_imp
 
 
 def calc_weights_max_cov(X, Y):
@@ -82,7 +90,11 @@ def calc_weights_max_cov(X, Y):
 
     w_cols = np.sqrt(cov_max)
     w_max_cov = np.append(w_cols/std_x, np.max(w_cols)/std_y)
-    return w_max_cov, w_cols / np.sum(w_cols)
+
+    w_imp = np.append(w_cols, np.max(w_cols))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_max_cov, w_imp
 
 
 def calc_weights_max_norm(X, Y):
@@ -105,7 +117,11 @@ def calc_weights_max_norm(X, Y):
     w_cols = cov_max**2 / np.sum(cov_max**2)
 
     w_max_cov = np.append(w_cols/std_x, np.max(w_cols)/std_y)
-    return w_max_cov, w_cols / np.sum(w_cols)
+
+    w_imp = np.append(w_cols, np.max(w_cols))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_max_cov, w_imp
 
 
 def calc_weights_max_cov_logit(X, Y):
@@ -128,7 +144,11 @@ def calc_weights_max_cov_logit(X, Y):
     w_cols = (np.exp(cov_max) - 1)
 
     w_max_cov = np.append(w_cols/std_x, np.max(w_cols)/std_y)
-    return w_max_cov, w_cols / np.sum(w_cols)
+
+    w_imp = np.append(w_cols, np.max(w_cols))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_max_cov, w_imp
 
 
 def calc_weights_max_cov_gauss(X, Y):
@@ -151,7 +171,10 @@ def calc_weights_max_cov_gauss(X, Y):
     w_cols = (np.exp(cov_max**2) - 1)
 
     w_max_cov = np.append(w_cols/std_x, np.max(w_cols)/std_y)
-    return w_max_cov, w_cols / np.sum(w_cols)
+    w_imp = np.append(w_cols, np.max(w_cols))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_max_cov, w_imp
 
 
 def calc_weights_unit_var(X, Y):
@@ -161,7 +184,11 @@ def calc_weights_unit_var(X, Y):
     std_x = np.std(X, axis=0)
     std_y = np.std(Y, axis=0)
     w_unit_var = np.append(1/std_x, 1/std_y)
-    return w_unit_var, []
+
+    w_imp = np.ones((X.shape[-1], Y.shape[-1]))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_unit_var, w_imp
 
 
 def calc_weights_pr_squeeze(X, Y, depth=4):
@@ -179,7 +206,7 @@ def calc_weights_pr_squeeze(X, Y, depth=4):
     # Perform projection pursuit to determine most important features to use for weight determination
     Y_res = Y_centered
     for ind_d in range(depth):
-        print('  Unexplained: {0:0.2f}'.format(np.sqrt(np.sum(Y_res[:, ]**2))))
+        # print('  Unexplained: {0:0.2f}'.format(np.sqrt(np.sum(Y_res[:, ]**2))))
         cov_max = np.zeros(X.shape[1])
         for ind_x in range(X.shape[1]):
             # If already selected for use, skip and continue
@@ -189,8 +216,9 @@ def calc_weights_pr_squeeze(X, Y, depth=4):
             cov_max[ind_x] = np.max(np.abs(cov_temp))
 
         ind_max = np.argmax(cov_max)
-        Y_exp = np.dot(Y_res.transpose(), X_centered[:, ind_max]) / np.dot(X_centered[:, ind_max].transpose(), X_centered[:, ind_max]) * X_centered[:, ind_max]
-        Y_res = Y_res - Y_exp[:, np.newaxis]
+        coef_prog = np.dot(Y_res.transpose(), X_centered[:, ind_max]) / np.dot(X_centered[:, ind_max].transpose(), X_centered[:, ind_max])
+        Y_exp = np.stack([coef * X_centered[:, ind_max] for coef in coef_prog], axis=-1)
+        Y_res = Y_res - Y_exp
         list_ind_sel.append(ind_max)
 
     cov_max = np.zeros(X.shape[1])
@@ -201,8 +229,25 @@ def calc_weights_pr_squeeze(X, Y, depth=4):
     w_cols = cov_max / np.sum(cov_max)
 
     w_pr_squeeze = np.append(w_cols/std_x, np.max(w_cols)/std_y)
-    return w_pr_squeeze, w_cols / np.sum(w_cols)
 
+    w_imp = np.append(w_cols, np.max(w_cols))
+    w_imp = w_imp / np.sum(w_imp)
+
+    return w_pr_squeeze, w_imp
+
+
+def calc_weights_imbalanced(X, Y):
+    """
+    Create weights for the distance function that are imbalanced
+    """
+    std_x = np.std(X, axis=0)
+    std_y = np.std(Y, axis=0)
+
+    w_cols = np.exp(10*np.random.rand(X.shape[-1] + Y.shape[-1]))
+
+    w_imp = w_cols / np.sum(w_cols)
+
+    return w_cols, w_imp
 
 
 class OnlineDatasetQuantizer(object):

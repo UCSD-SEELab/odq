@@ -2,31 +2,104 @@ import sys
 import os
 import time
 from datetime import datetime
+import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import partial
 from sklearn import preprocessing
 import pickle as pkl
-from ml_models import train_test_split, train_test_split_blocks
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
 
 from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, \
-                    calc_weights_max_norm, calc_weights_max_cov_gauss, calc_weights_pr_squeeze, calc_weights_incorrect
+                    calc_weights_max_norm, calc_weights_max_cov_gauss, calc_weights_pr_squeeze, calc_weights_incorrect, \
+                    calc_weights_imbalanced
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power, metasense
 
 
+def train_test_split(X, Y, pct_train=0.8, weights=None):
+    """
+    Splits the datasets X and Y into training and test sets based on input percentage (pct_train)
+    """
+    N = X.shape[0]
+    ind_split = np.round(N*pct_train).astype(int)
+    ind_random = np.random.permutation(N)
+
+    if weights is None:
+        return X[ind_random[:ind_split], :], X[ind_random[ind_split:], :], \
+               Y[ind_random[:ind_split], :], Y[ind_random[ind_split:], :]
+    else:
+        return X[ind_random[:ind_split], :], X[ind_random[ind_split:], :], \
+               Y[ind_random[:ind_split], :], Y[ind_random[ind_split:], :], \
+               weights[ind_random[:ind_split]]
+
+def train_test_split_blocks(X, Y, pct_train=0.8, n_blocks=3):
+    """
+    Splits datasets X and Y into training and test sets based on input percentage, dividing the test set into
+    n_blocks number of continuous blocks
+    """
+    N = X.shape[0]
+    N_test = np.round(N*(1 - pct_train)).astype(int)
+    list_block_sizes = []
+    for _ in range(n_blocks):
+        list_block_sizes.append((N_test - sum(list_block_sizes)) // (n_blocks - len(list_block_sizes)))
+
+    list_ind_test = []
+
+    for block_size in list_block_sizes:
+        ind_block_min = np.random.randint(N - 1 - block_size)
+        ind_block_max = ind_block_min + block_size
+
+        while (ind_block_min in list_ind_test) or (ind_block_max in list_ind_test):
+            ind_block_min = np.random.randint(N - 1 - block_size)
+            ind_block_max = ind_block_min + block_size
+
+        list_ind_test.extend(list(range(ind_block_min, ind_block_max)))
+
+    list_ind_train = list(set(np.random.permutation(N)) - set(list_ind_test))
+
+    return X[list_ind_train, :], X[list_ind_test, :], \
+           Y[list_ind_train, :], Y[list_ind_test, :]
+
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', type=str, help='Target directory to save generated files.')
+    parser.add_argument('--N', type=int, nargs=1, help='Number of iterations to generate.', default=[5])
+    parser.add_argument('--dataset', type=str, help='Dataset to use.')
+    parser.add_argument('--w_type', type=int, nargs=1, help='Type of weight to use in ODQ (1: ones, 2: cov_max2, 3: unit_var, 4: pr_squeeze', default=[3])
+    parser.add_argument('--brd', type=int, nargs=1, help='Board number for MetaSense tests', default=[11])
+
+    args = parser.parse_args()
+
+    if args.dir is not None:
+        directory_target = args.dir
+    else:
+        directory_target = 'unnamed_results'
+
+    if args.dataset is not None:
+        try:
+            DATASET = eval(args.dataset)
+        except:
+            print('Failed to load {0}'.format(args.dataset))
+            sys.exit()
+    else:
+        DATASET = metasense
+
+    if not(DATASET in [home_energy, server_power, metasense]):
+        print('Invalid dataset')
+        sys.exit()
+
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    DATASET = home_energy # home_energy # server_power # metasense
-    directory_target = 'home_energy_weights_incorrect_20190404'
     ind_assess = [-1] #2000 * np.arange(1, 35).astype(int)
-    list_compression_ratio = np.append([], 2**(2 + 2*np.arange(4)))[::-1]#2**(1 + np.arange(9))[::-1]
-    N_iterations = 5
+    list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1]
+    N_iterations = args.N[0]
+    weight_type = args.w_type[0]
+    metasense_brd = args.brd[0]
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
     TRAIN_VAL_RATIO = 0.8
 
@@ -77,7 +150,7 @@ if __name__ == '__main__':
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
 
     elif DATASET is metasense:
-        X, Y = DATASET.load()
+        X, Y = DATASET.load(board_num=metasense_brd)
         X_train, X_test, Y_train, Y_test = train_test_split_blocks(X, Y, pct_train=TRAIN_TEST_RATIO, n_blocks=10)
 
     else:
@@ -112,15 +185,20 @@ if __name__ == '__main__':
                 Y_train = Y_train[ind_random]
 
         # Generate new sets of weights for selected training set
-        w_max_cov, cov_max = calc_weights_max_cov2(X_train, Y_train)
-        w_max_cov_norm, cov_max_norm = calc_weights_max_norm(X_train, Y_train)
-        w_unit_var, _ = calc_weights_unit_var(X_train, Y_train)
-        w_max_cov_gauss, cov_max_gauss = calc_weights_max_cov_gauss(X_train, Y_train)
-        w_pr_squeeze, cov_pr_squeeze = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
-        w_ones = np.ones((N_x + N_y))
-        w_incorrect, cov_incorrect = calc_weights_incorrect(X_train, Y_train)
-        w_x = w_incorrect[:N_x]
-        w_y = w_incorrect[N_x:]
+        if weight_type <= 1:
+            w_list = np.ones((N_x + N_y))
+            w_imp = w_list / sum(w_list)
+        elif weight_type == 2:
+            w_list, w_imp = calc_weights_max_cov2(X_train, Y_train)
+        elif weight_type == 3:
+            w_list, w_imp = calc_weights_unit_var(X_train, Y_train)
+        elif weight_type == 4:
+            w_list, w_imp = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
+        elif weight_type >= 5:
+            w_list, w_imp = calc_weights_imbalanced(X_train, Y_train)
+
+        w_x = w_list[:N_x]
+        w_y = w_list[N_x:]
 
         min_max_scaler_x.fit(X_train)
         min_max_scaler_y.fit(Y_train)
@@ -157,4 +235,4 @@ if __name__ == '__main__':
                           'X_train': X_train, 'X_test': X_test,
                           'min_max_scaler_x': min_max_scaler_x, 'min_max_scaler_y': min_max_scaler_y,
                           'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'TRAIN_TEST_RATIO': TRAIN_TEST_RATIO,
-                          }, fid)
+                          'w_x': w_x, 'w_y': w_y, 'w_imp': w_imp}, fid)

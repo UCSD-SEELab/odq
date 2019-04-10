@@ -1,12 +1,14 @@
 import sys
 import os
 import time
+import argparse
 from datetime import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.callbacks import EarlyStopping
 from keras import backend as K
+import tensorflow as tf
 
 from ml_models import generate_model_server_power, generate_model_home_energy, generate_model_metasense, train_test_split, train_test_split_blocks
 import pickle as pkl
@@ -19,19 +21,48 @@ from odq.data import home_energy, server_power, metasense
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', type=str, help='Target directory of files.')
+    parser.add_argument('--N', type=int, nargs=1, help='Number of trials to run.', default=3)
+    parser.add_argument('--cpu', action='store_true')
+
+    args = parser.parse_args()
+
+    if args.dir is not None:
+        directory_target = args.dir
+    else:
+        directory_target = 'metasense_test_cov_max2_20190401'
+
+    # Configure tensorflow
+    num_cores = 4
+    if args.cpu:
+        num_CPU = num_cores
+        num_GPU = 0
+    else:
+        num_GPU = 1
+        num_CPU = num_cores
+
+    config = tf.ConfigProto(intra_op_parallelism_threads=num_cores,
+                            inter_op_parallelism_threads=num_cores,
+                            allow_soft_placement=True,
+                            device_count={'CPU': num_CPU,
+                                          'GPU': num_GPU}
+                            )
+
+    session = tf.Session(config=config)
+    K.set_session(session)
+
+    N_trials = args.N[0]
+
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     FLAG_SAVE_MODEL = False
     FLAG_TRAIN_MODEL = False
     directory_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
-    directory_target = 'test_convergence'
 
-    N_trials = 3
     TRAIN_VAL_RATIO = 0.8
-    list_lr = [0.001, 0.0001, 0.00001]
-    list_std_noise = [0.1, 0.01, 0.001]
-
-    # np.random.seed(1237)
+    list_lr = [0.0001] #[0.001, 0.0001, 0.00001]
+    list_std_noise = [0.01, 0.001]
 
     plt.ion()
 
@@ -187,7 +218,7 @@ if __name__ == '__main__':
 
                     if FLAG_SAVE_MODEL:
                         with open(os.path.join(directory_target_full,
-                                               filename_base + '_lr{1}_std{2}_models_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
+                                               filename_base + 'lr{1}_std{2}_models_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
                             pkl.dump({'model_odq': model_odq, 'model_reservoir': model_reservoir,
                                       'history_odq': history_odq, 'history_reservoir': history_reservoir,
                                       'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
@@ -196,7 +227,7 @@ if __name__ == '__main__':
                                       'N_datapoints': N_datapoints}, fid)
                     else:
                         with open(os.path.join(directory_target_full,
-                                               filename_base + '_lr{1}_std{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
+                                               filename_base + 'lr{1}_std{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
                             pkl.dump({'history_odq': history_odq, 'history_reservoir': history_reservoir,
                                       'score_odq': score_odq, 'Y_odq_predict': Y_odq_predict,
                                       'score_reservoir': score_reservoir, 'Y_reservoir_predict': Y_reservoir_predict,
@@ -228,3 +259,22 @@ if __name__ == '__main__':
 
                     # Reset Tensorflow session to prevent memory growth
                     K.clear_session()
+
+                    # Configure tensorflow
+                    num_cores = 4
+                    if args.cpu:
+                        num_GPU = 1
+                        num_CPU = 3
+                    else:
+                        num_CPU = 3
+                        num_GPU = 0
+
+                    config = tf.ConfigProto(intra_op_parallelism_threads=num_cores,
+                                            inter_op_parallelism_threads=num_cores,
+                                            allow_soft_placement=True,
+                                            device_count={'CPU': num_CPU,
+                                                          'GPU': num_GPU}
+                                            )
+
+                    session = tf.Session(config=config)
+                    K.set_session(session)

@@ -86,15 +86,11 @@ def train_test_split_blocks(X, Y, pct_train=0.8, n_blocks=3):
     list_ind_test = []
 
     for block_size in list_block_sizes:
-        ind_rand = np.random.randint(N - 1)
-        ind_block_min = ind_rand - np.floor(block_size / 2).astype(int)
-        ind_block_min = max([0, ind_block_min])
+        ind_block_min = np.random.randint(N - 1 - block_size)
         ind_block_max = ind_block_min + block_size
 
         while (ind_block_min in list_ind_test) or (ind_block_max in list_ind_test):
-            ind_rand = np.random.randint(N - 1)
-            ind_block_min = ind_rand - np.floor(block_size / 2).astype(int)
-            ind_block_min = max([0, ind_block_min])
+            ind_block_min = np.random.randint(N - 1 - block_size)
             ind_block_max = ind_block_min + block_size
 
         list_ind_test.extend(list(range(ind_block_min, ind_block_max)))
