@@ -95,7 +95,7 @@ if __name__ == '__main__':
     FLAG_VERBOSE = False
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
-    ind_assess = 5000 * np.arange(1, 35).astype(int)
+    ind_assess = [-1] # 5000 * np.arange(1, 35).astype(int)
     list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1]
     N_iterations = args.N[0]
     list_weight_type = args.w_type
@@ -262,4 +262,4 @@ if __name__ == '__main__':
                 os.mkdir(directory_target_full)
 
             with open(os.path.join(directory_target_full, filename_base + '_{0}_{1}_quantized.pkl'.format(compression_ratio, ind_loop)), 'wb') as fid:
-                pkl.dump({dict_out: w_imp}, fid)
+                pkl.dump(dict_out, fid)
