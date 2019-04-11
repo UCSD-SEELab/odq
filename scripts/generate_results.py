@@ -234,8 +234,8 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, help='Target directory of files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of trials to run.', default=[3])
     parser.add_argument('--cpu', action='store_true')
-    parser.add_argument('--lr', type=int, nargs='+', help='ADAM learning rates to use.', default=[0.0001])
-    parser.add_argument('--std', type=int, nargs='+', help='Noise std dev to use for NN training.', default=[0.001])
+    parser.add_argument('--lr', type=float, nargs='+', help='ADAM learning rates to use.', default=[0.0001])
+    parser.add_argument('--std', type=float, nargs='+', help='Noise std dev to use for NN training.', default=[0.001])
 
     args = parser.parse_args()
 
