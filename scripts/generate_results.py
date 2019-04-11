@@ -44,7 +44,7 @@ def config_tf_session(b_cpu):
     K.set_session(session)
 
 def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.0001], list_std_noise=[0.001],
-                 TRAIN_VAL_RATIO = 0.8):
+                 TRAIN_VAL_RATIO = 0.8, b_usefreq=True, b_costmae=False):
     """
     Generate results for neural network processing of the quantized dataset
     """
@@ -114,7 +114,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
 
                 # Create an early stopping callback appropriate for the dataset size
                 cb_earlystopping = EarlyStopping(monitor='val_loss',
-                                                 patience=max([20, min([compression_ratio*lr/0.0001, 250])]),
+                                                 patience=max([20, min([compression_ratio*lr/0.00005, 250])]),
                                                  restore_best_weights=True)
 
                 # Create machine learning models for each evaluation step
@@ -127,8 +127,8 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
                     generate_model = generate_model_metasense
 
                 for _ in list_quantizers:
-                    list_model_odq.append(generate_model(N_x, N_y))
-                model_reservoir = generate_model_home_energy(N_x, N_y)
+                    list_model_odq.append(generate_model(N_x, N_y, lr=lr, std_noise=std_noise, b_costmae=b_costmae))
+                model_reservoir = generate_model_home_energy(N_x, N_y, lr=lr, std_noise=std_noise, b_costmae=b_costmae)
 
                 # Perform training from reservoir data first, saving the validation set
                 time_start = time.time()
@@ -141,11 +141,11 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
                 X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
 
                 # Train the model on 10 epochs before checking for early stopping conditions to prevent premature return
-                history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=32, epochs=10, verbose=0,
+                history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=64, epochs=10, verbose=0,
                                                    validation_data=(X_val, Y_val))
                 history_reservoir = history_temp.history
                 history_reservoir['epoch'] = history_temp.epoch
-                history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=32, epochs=N_epochs, verbose=0,
+                history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=64, epochs=N_epochs, verbose=0,
                                                    validation_data=(X_val, Y_val), initial_epoch=10,
                                                    callbacks=[cb_earlystopping])
                 history_reservoir['epoch'].extend(history_temp.epoch)
@@ -188,11 +188,15 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
 
                     # Train using validation set from reservoir sampling. Size is already taken into account in
                     # generate_reduced_datasets.py
-                    history_temp = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=10, sample_weight=w_temp, verbose=0,
+                    if b_usefreq:
+                        sample_weight = w_temp
+                    else:
+                        sample_weight = None
+                    history_temp = model_odq.fit(X_temp, Y_temp, batch_size=64, epochs=10, sample_weight=sample_weight, verbose=0,
                                                  validation_data=(X_val, Y_val))
                     history_odq = history_temp.history
                     history_odq['epoch'] = history_temp.epoch
-                    history_temp = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp, verbose=0,
+                    history_temp = model_odq.fit(X_temp, Y_temp, batch_size=64, epochs=N_epochs, sample_weight=sample_weight, verbose=0,
                                                  validation_data=(X_val, Y_val), initial_epoch=10,
                                                  callbacks=[cb_earlystopping])
                     history_odq['epoch'].extend(history_temp.epoch)
@@ -236,6 +240,8 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--lr', type=float, nargs='+', help='ADAM learning rates to use.', default=[0.0001])
     parser.add_argument('--std', type=float, nargs='+', help='Noise std dev to use for NN training.', default=[0.001])
+    parser.add_argument('--usefreq', action='store_false')
+    parser.add_argument('--costmae', action='store_false')
 
     args = parser.parse_args()
 
@@ -248,8 +254,9 @@ if __name__ == '__main__':
 
     dir_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
-    p_run_nn_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials, b_cpu=args.cpu,
-                                           list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8)
+    p_run_nn_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
+                             b_cpu=args.cpu, b_usefreq=args.usefreq, b_costmae=args.costmae,
+                             list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8, )
 
     with Pool(4) as p:
         p.map(p_run_nn_tests,
