@@ -234,6 +234,8 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, help='Target directory of files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of trials to run.', default=[3])
     parser.add_argument('--cpu', action='store_true')
+    parser.add_argument('--lr', type=int, nargs='+', help='ADAM learning rates to use.', default=[0.0001])
+    parser.add_argument('--std', type=int, nargs='+', help='Noise std dev to use for NN training.', default=[0.001])
 
     args = parser.parse_args()
 
@@ -247,7 +249,7 @@ if __name__ == '__main__':
     dir_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
     p_run_nn_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials, b_cpu=args.cpu,
-                                           list_lr=[0.0001], list_std_noise=[0.001], TRAIN_VAL_RATIO=0.8)
+                                           list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8)
 
     with Pool(4) as p:
         p.map(p_run_nn_tests,
