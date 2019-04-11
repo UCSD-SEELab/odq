@@ -27,11 +27,11 @@ def config_tf_session(b_cpu):
     # Configure tensorflow
     num_cores = 3
     if b_cpu:
-        num_GPU = 1
+        num_GPU = 0
         num_CPU = num_cores
     else:
+        num_GPU = 1
         num_CPU = num_cores
-        num_GPU = 0
 
     config = tf.ConfigProto(intra_op_parallelism_threads=num_cores,
                             inter_op_parallelism_threads=num_cores,
@@ -226,7 +226,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
                         os.mkdir(dir_target_full)
 
                 with open(os.path.join(dir_target_full,
-                                       filename_base + 'lr{1}_std{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise)), 'wb') as fid:
+                                       filename_base + 'lr{1}_std{2}_f{3}_c{4}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, int(b_usefreq), int(b_costmae))), 'wb') as fid:
                     pkl.dump(dict_out, fid)
 
                 # Reset Tensorflow session to prevent memory growth
@@ -240,8 +240,8 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--lr', type=float, nargs='+', help='ADAM learning rates to use.', default=[0.0001])
     parser.add_argument('--std', type=float, nargs='+', help='Noise std dev to use for NN training.', default=[0.001])
-    parser.add_argument('--usefreq', action='store_false')
-    parser.add_argument('--costmae', action='store_false')
+    parser.add_argument('--usefreq', action='store_true')
+    parser.add_argument('--costmae', action='store_true')
 
     args = parser.parse_args()
 
