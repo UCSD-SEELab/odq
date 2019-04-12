@@ -108,7 +108,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
                 if not(FLAG_OVERWRITE) and os.path.isfile(
                         os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
                                      dir_target,
-                                     filename_base + '_lr{1}_std{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise))):
+                                     filename_base + 'lr{1}_std{2}_f{3}_c{4}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, int(b_usefreq), int(b_costmae)))):
                     print('  File already processed')
                     continue
 
