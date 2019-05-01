@@ -1,0 +1,7 @@
+python utility_reorg_files_lr.py metasense12_unit_var_20190407
+python utility_reorg_files_lr.py metasense11_imbalanced_20190407
+python utility_reorg_files_lr.py metasense12_cov_max2_20190407
+python utility_reorg_files_lr.py metasense12_ones_20190407
+python utility_reorg_files_lr.py metasense11_unit_var_20190407
+python utility_reorg_files_lr.py metasense11_ones_20190407
+python utility_reorg_files_lr.py metasense_ones_20190407
