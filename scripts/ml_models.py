@@ -89,7 +89,7 @@ def generate_model_square(N_x, N_y, N_layer, N_weights, std_noise=0.01, lr=0.001
 
     layer_input = Input(shape=(N_x,))
 
-    layer_out = Dense(N_y)(layer_hidden)
+    layer_out = Dense(N_y)(layer_input)
 
     model_nn = Model(inputs=layer_input, outputs=layer_out)
     if optimizer == 'sgd':
