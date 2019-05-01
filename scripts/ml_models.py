@@ -4,7 +4,7 @@ from keras import Model
 from keras.layers import Input, Dense, Dropout, GaussianNoise
 from keras.optimizers import Adam, SGD
 
-def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.0001, b_costmae=False):
+def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):
     """
     Create neural network model for the server power dataset
     """
@@ -18,14 +18,18 @@ def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.0001, b_costmae=F
     layer2 = Dropout(0.5)(layer2)
     layer_out = Dense(N_y)(layer2)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
-    optimizer_adam = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    if optimizer == 'sgd':
+        optimizer = SGD(lr=lr, decay=decay)
+    elif optimizer == 'adam':
+        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
     if b_costmae:
-        model_nn.compile(optimizer=optimizer_adam, loss='mean_absolute_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mse', 'mae'])
     else:
-        model_nn.compile(optimizer=optimizer_adam, loss='mean_squared_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 
-def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.0001, b_costmae=False):
+def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):
     """
     Create neural network model for the home energy dataset
     """
@@ -41,14 +45,18 @@ def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.0001, b_costmae=Fa
     layer2 = Dropout(0.5)(layer2)
     layer_out = Dense(N_y)(layer2)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
-    optimizer_adam = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    if optimizer == 'sgd':
+        optimizer = SGD(lr=lr, decay=decay)
+    elif optimizer == 'adam':
+        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
     if b_costmae:
-        model_nn.compile(optimizer=optimizer_adam, loss='mean_absolute_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mse', 'mae'])
     else:
-        model_nn.compile(optimizer=optimizer_adam, loss='mean_squared_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 
-def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.0001, b_costmae=False):
+def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):
     """
     Create neural network model
     """
@@ -60,11 +68,15 @@ def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.0001, b_costmae=Fals
     layer2 = Dropout(0.5)(layer2)
     layer_out = Dense(N_y)(layer2)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
-    optimizer_adam = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    if optimizer == 'sgd':
+        optimizer = SGD(lr=lr, decay=decay)
+    elif optimizer == 'adam':
+        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
     if b_costmae:
-        model_nn.compile(optimizer=optimizer_adam, loss='mean_absolute_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mse', 'mae'])
     else:
-        model_nn.compile(optimizer=optimizer_adam, loss='mean_squared_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 
 def train_test_split(X, Y, pct_train=0.8, weights=None):
