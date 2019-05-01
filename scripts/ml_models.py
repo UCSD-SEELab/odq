@@ -79,6 +79,30 @@ def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_c
         model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 
+def generate_model_square(N_x, N_y, N_layer, N_weights, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):
+    """
+    description
+
+    N_layer:
+    N_weights:
+    """
+
+    layer_input = Input(shape=(N_x,))
+
+    layer_out = Dense(N_y)(layer_hidden)
+
+    model_nn = Model(inputs=layer_input, outputs=layer_out)
+    if optimizer == 'sgd':
+        optimizer = SGD(lr=lr, decay=decay)
+    elif optimizer == 'adam':
+        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
+    if b_costmae:
+        model_nn.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mse', 'mae'])
+    else:
+        model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
+    return model_nn
+
 def train_test_split(X, Y, pct_train=0.8, weights=None):
     """
     Splits the datasets X and Y into training and test sets based on input percentage (pct_train)
