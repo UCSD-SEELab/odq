@@ -68,7 +68,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', type=str, help='Target directory to save generated files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of iterations to generate.', default=[5])
-    parser.add_argument('--dataset', type=str, help='Dataset to use.')
+    parser.add_argument('--dataset', type=str, help='Dataset to use (home_energy, server_power, metasense)')
     parser.add_argument('--w_type', type=int, nargs='+', help='Type of weight to use in ODQ (1: ones, 2: cov_max2, 3: unit_var, 4: pr_squeeze', default=[3])
     parser.add_argument('--brd', type=int, nargs=1, help='Board number for MetaSense tests', default=[11])
 

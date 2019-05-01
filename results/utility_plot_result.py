@@ -27,7 +27,7 @@ if __name__ == '__main__':
             print('  ERROR loading results file.')
 
     else:
-        if FLAG_SAVE_COMPUTATION:
+        if not(FLAG_SAVE_COMPUTATION):
             print('Generating...')
         else:
             print('Existing results file not found. Generating...')
@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
             if filetype == 'reduced.pkl':
                 try:
-                    score_odq = np.sqrt(np.mean( (data_temp['Y_test'] - data_temp['Y_odq_predict'])**2 ))
+                    score_odq = np.sqrt(np.mean( (data_temp['Y_test'] - data_temp['Y_odq_predict_w3'])**2 ))
                     score_res = np.sqrt(np.mean( (data_temp['Y_test'] - data_temp['Y_reservoir_predict'])**2 ))
                 except:
                     print('  ERROR. Missing expected entries.')
@@ -77,12 +77,12 @@ if __name__ == '__main__':
                 if entry:
                     entry[0]['score_odq'].append(score_odq)
                     entry[0]['score_res'].append(score_res)
-                    entry[0]['history_odq'].append(data_temp['history_odq'])
+                    entry[0]['history_odq'].append(data_temp['history_odq_w3'])
                     entry[0]['history_reservoir'].append(data_temp['history_reservoir'])
                 else:
                     data.append({'compression_ratio': compression_ratio,
                                  'score_odq': [score_odq], 'score_res': [score_res],
-                                 'history_odq': [data_temp['history_odq']], 'history_reservoir': [data_temp['history_reservoir']]})
+                                 'history_odq': [data_temp['history_odq_w3']], 'history_reservoir': [data_temp['history_reservoir']]})
 
             elif filetype == 'full.pkl':
                 try:
