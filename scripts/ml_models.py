@@ -3,6 +3,17 @@ import numpy as np
 from keras import Model
 from keras.layers import Input, Dense, Dropout, GaussianNoise
 from keras.optimizers import Adam, SGD
+from keras import backend as K
+from functools import partial
+
+
+# define sigmoid custom loss function
+def custom_loss_function (y_true, y_pred, m=1 , b=0) :
+
+    alpha = K.exp(m*y_true +b) / (1 + K.exp(m*y_true + b))
+
+    return alpha*K.mean(K.square(y_pred - y_true))
+
 
 def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):
     """
@@ -50,10 +61,13 @@ def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b
     elif optimizer == 'adam':
         optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
+    # partial call sigmoid custom loss function
+    func_loss = partial(custom_loss_function, m=1, b=0)
+
     if b_costmae:
-        model_nn.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss=func_loss, metrics=['mse', 'mae'])
     else:
-        model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
+        model_nn.compile(optimizer=optimizer, loss=func_loss, metrics=['mse', 'mae'])
     return model_nn
 
 def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):

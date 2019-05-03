@@ -137,8 +137,8 @@ if __name__ == '__main__':
                         generate_model = generate_model_metasense
 
                     for _ in list_quantizers:
-                        list_model_odq.append(generate_model(N_x, N_y))
-                    model_reservoir = generate_model_home_energy(N_x, N_y)
+                        list_model_odq.append(generate_model(N_x, N_y , lr = 0.00001))
+                    model_reservoir = generate_model_home_energy(N_x, N_y ,  lr = 0.00001)
 
                     # Perform training from reservoir data first, saving the validation set
                     time_start = time.time()
