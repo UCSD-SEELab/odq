@@ -4,6 +4,7 @@ import time
 import argparse
 from functools import partial
 from multiprocessing import Pool
+import matplotlib.pyplot as plt
 
 import numpy as np
 from keras.callbacks import EarlyStopping
@@ -232,16 +233,196 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
                 # Reset Tensorflow session to prevent memory growth
                 K.clear_session()
 
+def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.001], list_decay=[0.001],
+                 TRAIN_VAL_RATIO = 0.8, b_usefreq=True, b_costmae=False):
+    """
+    Generate results for neural network processing of the quantized dataset
+    """
+    FLAG_OVERWRITE = False
+    FLAG_SAVEIMG = True
+    dir_img_full = os.path.join(dir_quant, '..', 'img', dir_target)
+
+    # Check that file is valid
+    if not (filename.lower().endswith('.pkl')):
+        return
+
+    filename_base = filename.replace('quantized.pkl', '')
+
+    print('{0}: Loading data'.format(filename))
+
+    try:
+        with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
+            data_temp = pkl.load(fid)
+        min_max_scaler_x = data_temp['min_max_scaler_x']
+        min_max_scaler_y = data_temp['min_max_scaler_y']
+        if 'quantizers' in data_temp:
+            list_quantizers = data_temp['quantizers']
+        else:
+            list_quantizers = [{'quantizer':data_temp['quantizer'], 'w_x': [0], 'w_y': [0], 'w_imp': [0], 'w_type': 0}]
+        reservoir_sampler = data_temp['reservoir_sampler']
+        X_train = data_temp['X_train']
+        Y_train = data_temp['Y_train']
+        X_test = data_temp['X_test']
+        Y_test = data_temp['Y_test']
+
+        filename_parts = filename.split('_')
+        if filename_parts[1] == 'data':
+            DATASET = eval('{0}'.format(filename_parts[0]))
+        else:
+            DATASET = eval('{0}_{1}'.format(filename_parts[0], filename_parts[1]))
+        compression_ratio = float(filename_parts[-3])
+        print('  SUCCESS')
+    except:
+        print('  ERROR. Skipping.')
+        return
+
+    # Process data
+    N_datapoints = X_train.shape[0]
+    N_x = X_train.shape[1]
+    N_y = Y_train.shape[1]
+
+    if DATASET is home_energy:
+        N_epochs = int(max(200, 50*compression_ratio))
+    else:
+        N_epochs = int(max(200, 30*compression_ratio))
+
+    dir_target_full = os.path.join(dir_quant, '..', 'raw', dir_target)
+    if not os.path.exists(dir_target_full):
+        os.mkdir(dir_target_full)
+
+    if not os.path.exists(dir_img_full):
+        os.mkdir(dir_img_full)
+
+    for ind_loop in range(N_trials):
+        print('{0}: Trial {1} of {2}:'.format(filename, ind_loop + 1, N_trials))
+
+        for lr in list_lr:
+            for decay in list_decay:
+
+                if not(FLAG_SAVEIMG) and os.path.isfile(
+                        os.path.join(dir_target_full, filename_base + 'lr{1}_decay{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, decay))):
+                    print('  File already processed')
+                    continue
+
+                # Create machine learning models for each evaluation step
+                list_model_odq = []
+                if DATASET is server_power:
+                    generate_model = generate_model_server_power
+                elif DATASET is home_energy:
+                    generate_model = generate_model_home_energy
+                elif DATASET is metasense:
+                    generate_model = generate_model_metasense
+
+                for _ in list_quantizers:
+                    list_model_odq.append(generate_model(N_x, N_y, std_noise=0, lr=lr, decay=decay, optimizer='sgd'))
+                model_reservoir = generate_model(N_x, N_y, std_noise=0, lr=lr, decay=decay, optimizer='sgd')
+
+                # Perform training from reservoir data first, saving the validation set
+                time_start = time.time()
+                X_temp, Y_temp = reservoir_sampler.get_dataset()
+
+                X_temp = min_max_scaler_x.transform(X_temp)
+                Y_temp = min_max_scaler_y.transform(Y_temp)
+
+                X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
+
+                history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=32, epochs=N_epochs, verbose=0,
+                                                   validation_data=(X_val, Y_val))
+                history_reservoir = history_temp.history
+                history_reservoir['epoch'] = history_temp.epoch
+
+                score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test),
+                                                           min_max_scaler_y.transform(Y_test), verbose=0)
+
+                Y_reservoir_predict = min_max_scaler_y.inverse_transform(
+                    model_reservoir.predict(min_max_scaler_x.transform(X_test)))
+
+                results_reservoir_rmse = np.sqrt(np.mean((Y_reservoir_predict - Y_test) ** 2, axis=0))
+
+                print('{0}: Reservoir LR: {1} Decay: {2} RMSE: {3} Time: {4:0.2f} s'.format(filename, lr, decay, np.array2string(results_reservoir_rmse, precision=2, suppress_small=True), time.time() - time_start))
+
+                plt.figure()
+                plt.title('Reservoir CR {3} trial {0} lr={1} decay={2}'.format(ind_loop, lr, decay, compression_ratio))
+                plt.plot(history_reservoir['epoch'], history_reservoir['mean_squared_error'])
+                plt.plot(history_reservoir['epoch'], history_reservoir['val_mean_squared_error'])
+                plt.legend(('Train', 'Test'))
+                plt.savefig(os.path.join(dir_img_full, 'Convergence_' + filename_base + \
+                                             'lr{1}_decay{2}_res_trial{0}_convergence.png'.format(ind_loop, lr, decay)))
+                plt.close()
+
+                dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
+                            'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
+                            'N_datapoints': N_datapoints}
+
+                for dict_quantizer, model_odq in zip(list_quantizers, list_model_odq):
+                    quantizer = dict_quantizer['quantizer']
+                    w_x = dict_quantizer['w_x']
+                    w_y = dict_quantizer['w_y']
+                    w_imp = dict_quantizer['w_imp']
+                    w_type = dict_quantizer['w_type']
+
+                    time_start = time.time()
+                    X_temp, Y_temp = quantizer.get_dataset()
+                    w_temp = quantizer.get_sample_weights()
+
+                    w_temp = w_temp * w_temp.shape[0] / np.sum(w_temp)
+
+                    X_temp = min_max_scaler_x.transform(X_temp)
+                    Y_temp = min_max_scaler_y.transform(Y_temp)
+
+                    # Train using validation set from reservoir sampling. Size is already taken into account in
+                    # generate_reduced_datasets.py
+                    history_temp = model_odq.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp,
+                                                 verbose=0,
+                                                 validation_data=(X_val, Y_val))
+                    history_odq = history_temp.history
+                    history_odq['epoch'] = history_temp.epoch
+
+                    score_odq = model_odq.evaluate(min_max_scaler_x.transform(X_test),
+                                                   min_max_scaler_y.transform(Y_test), verbose=0)
+
+                    Y_odq_predict = min_max_scaler_y.inverse_transform(
+                        model_odq.predict(min_max_scaler_x.transform(X_test)))
+
+                    results_odq_rmse = np.sqrt(np.mean((Y_odq_predict - Y_test) ** 2, axis=0))
+
+                    print('{0}: ODQ {5} LR: {1} Decay: {2} RMSE: {3} Time: {4:0.2f} s'.format(filename, lr, decay, np.array2string(results_odq_rmse, precision=2, suppress_small=True), time.time() - time_start, dict_quantizer['w_type']))
+
+                    plt.figure()
+                    plt.title('Weight-type {4} CR {3} trial {0} lr={1} decay={2}'.format(ind_loop, lr, decay, compression_ratio,
+                                                                                  dict_quantizer['w_type']))
+                    plt.plot(history_odq['epoch'], history_odq['mean_squared_error'])
+                    plt.plot(history_odq['epoch'], history_odq['val_mean_squared_error'])
+                    plt.legend(('Train', 'Test'))
+                    plt.savefig(os.path.join(dir_img_full, 'Convergence_' + filename_base + \
+                                             'lr{1}_decay{2}_{3}_trial{0}.png'.format(ind_loop, lr, decay,
+                                                                                      dict_quantizer['w_type'])))
+                    plt.close()
+
+                    dict_out['history_odq_w{0}'.format(w_type)] = history_odq
+                    dict_out['score_odq_w{0}'.format(w_type)] = score_odq
+                    dict_out['Y_odq_predict_w{0}'.format(w_type)] = Y_odq_predict
+
+                # Save all results for subsequent processing
+                with open(os.path.join(dir_target_full, filename_base + 'lr{1}_decay{2}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, decay)), 'wb') as fid:
+                    pkl.dump(dict_out, fid)
+
+                # Reset Tensorflow session to prevent memory growth
+                K.clear_session()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', type=str, help='Target directory of files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of trials to run.', default=[3])
-    parser.add_argument('--cpu', action='store_true')
-    parser.add_argument('--lr', type=float, nargs='+', help='ADAM learning rates to use.', default=[0.0001])
-    parser.add_argument('--std', type=float, nargs='+', help='Noise std dev to use for NN training.', default=[0.001])
-    parser.add_argument('--usefreq', action='store_true')
-    parser.add_argument('--costmae', action='store_true')
+    parser.add_argument('--cpu', help='Flag to use CPU version of Tensorflow (GPU by default).', action='store_true')
+    parser.add_argument('--Nproc', type=int, help='Number of simultaneous processes to run.', default=1)
+    parser.add_argument('--lr', type=float, nargs='+', help='Learning rates to use.', default=[0.0001])
+    parser.add_argument('--std', type=float, nargs='+', help='Noise std dev to use during NN training.', default=[0.001])
+    parser.add_argument('--decay', type=float, nargs='+', help='Decay rate to use for optimizer.')
+    parser.add_argument('--usefreq', help='Flag to use frequency of samples in training', action='store_true')
+    parser.add_argument('--costmae', help='Flag to use MAE as the loss function in training.', action='store_true')
+    parser.add_argument('--test', type=str, help='Type of test to run (nn or convergence)')
 
     args = parser.parse_args()
 
@@ -254,12 +435,20 @@ if __name__ == '__main__':
 
     dir_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
-    p_run_nn_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                             b_cpu=args.cpu, b_usefreq=args.usefreq, b_costmae=args.costmae,
-                             list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8, )
+    if args.test == 'nn':
+        p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
+                                 b_cpu=args.cpu, b_usefreq=args.usefreq, b_costmae=args.costmae,
+                                 list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8)
+    elif args.test == 'convergence':
+        p_run_tests = partial(run_convergence_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
+                                 b_cpu=args.cpu, b_usefreq=args.usefreq, b_costmae=args.costmae,
+                                 list_lr=args.lr, list_decay=args.decay, TRAIN_VAL_RATIO=0.8)
+    else:
+        print('Invalid test type.')
+        sys.exit()
 
-    with Pool(4) as p:
-        p.map(p_run_nn_tests,
+    with Pool(args.Nproc) as p:
+        p.map(p_run_tests,
               [filename for filename in os.listdir(os.path.join(dir_quant, dir_target)) if
                (filename.lower().endswith('.pkl'))])
 
