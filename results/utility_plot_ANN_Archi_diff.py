@@ -10,7 +10,7 @@ import argparse
 if __name__ == '__main__':
     directory_target = 'ann_test_home_energy_201905031'
     list_filename_base = ['home_energy']
-    plot_type = 'Training'  # 'Data_Size' / 'Training'
+    plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
     FLAG_SAVE_COMPUTATION = False
     filename_save = 'results_metasense12_imbalanced_20190407.pkl'
 
@@ -143,8 +143,8 @@ if __name__ == '__main__':
         plt.errorbar(list_n, list_odq_mean, yerr=list_odq_std)
         plt.errorbar(list_n, list_res_mean, yerr=list_res_std)
         plt.legend(('Full', 'ODQ', 'Reservoir'))
-        #plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean + list_full_std, list_full_mean + list_full_std], 'k:')
-        #plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean - list_full_std, list_full_mean - list_full_std], 'k:')
+        plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean + list_full_std, list_full_mean + list_full_std], 'k:')
+        plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean - list_full_std, list_full_mean - list_full_std], 'k:')
         plt.xlabel('Number of Samples Retained')
         plt.ylabel('Error (MSE)')
         plt.title('Home Energy Dataset')
