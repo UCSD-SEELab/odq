@@ -170,7 +170,8 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
 
                 dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
                             'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
-                            'N_datapoints': N_datapoints}
+                            'N_datapoints': N_datapoints, 'N_trials': N_trials, 'list_lr': list_lr, 'list_std_noise': list_std_noise,
+                            'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO}
 
                 for dict_quantizer, model_odq in zip(list_quantizers, list_model_odq):
                     quantizer = dict_quantizer['quantizer']
@@ -252,6 +253,7 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
     """
     Generate results for neural network processing of the quantized dataset
     """
+
     FLAG_OVERWRITE = False
 
     # Check that file is valid
@@ -335,7 +337,7 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
 
                 for _ in list_quantizers:
                     list_model_odq.append(generate_model(N_x, N_y, L, RAM, lr=lr, std_noise=std_noise, b_costmae=b_costmae))
-                model_reservoir = generate_model_home_energy(N_x, N_y, lr=lr, std_noise=std_noise, b_costmae=b_costmae)
+                model_reservoir = generate_model(N_x, N_y, lr=lr, std_noise=std_noise, b_costmae=b_costmae)
 
                 # Perform training from reservoir data first, saving the validation set
                 time_start = time.time()
@@ -374,7 +376,8 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
 
                 dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
                             'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
-                            'N_datapoints': N_datapoints}
+                            'N_datapoints': N_datapoints, 'N_trials': N_trials, 'list_lr': list_lr, 'list_std_noise': list_std_noise,
+                            'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'Number_of_Layers': L, 'Device_RAM_Size': RAM}
 
                 for dict_quantizer, model_odq in zip(list_quantizers, list_model_odq):
                     quantizer = dict_quantizer['quantizer']
