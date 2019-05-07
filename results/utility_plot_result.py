@@ -58,7 +58,8 @@ if __name__ == '__main__':
 
             # list_filepieces = file.split(sep=temp_filename_base)[-1].split(sep='_')
             list_filepieces = file.split(sep='_')
-            compression_ratio = float(list_filepieces[-7][-6])
+            compression_ratio = float(list_filepieces[-9])
+            print(compression_ratio)
             filetype = list_filepieces[-1]
 
             if N_datapoints < 0 and any([dict_key == 'N_datapoints' for dict_key in data_temp.keys()]):
