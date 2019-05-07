@@ -117,6 +117,9 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
                                                  patience=max([20, min([compression_ratio*lr/0.00005, 250])]),
                                                  restore_best_weights=True)
 
+
+                '''TODO : Write a method to stop early when reaching the minimum point'''
+
                 # Create machine learning models for each evaluation step
                 list_model_odq = []
                 if DATASET is server_power:
@@ -238,8 +241,14 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_l
 
 
 
-def run_sq_nn_tests(filename, dir_quant, dir_target,L, RAM, N_trials=3, b_cpu=True, list_lr=[0.0001], list_std_noise=[0.001],
-                 TRAIN_VAL_RATIO = 0.8, b_usefreq=True, b_costmae=False):
+
+
+
+
+
+
+def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.0001], list_std_noise=[0.001],
+                 TRAIN_VAL_RATIO = 0.8, L = 2, RAM = 4000, b_usefreq=True, b_costmae=False):
     """
     Generate results for neural network processing of the quantized dataset
     """
@@ -303,7 +312,7 @@ def run_sq_nn_tests(filename, dir_quant, dir_target,L, RAM, N_trials=3, b_cpu=Tr
                 if not(FLAG_OVERWRITE) and os.path.isfile(
                         os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
                                      dir_target,
-                                     filename_base + 'lr{1}_std{2}_f{3}_c{4}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, int(b_usefreq), int(b_costmae)))):
+                                     filename_base + 'lr{1}_std{2}_f{3}_c{4}_L{5}_RAM{6}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, int(b_usefreq), int(b_costmae),L, RAM))):
                     print('  File already processed')
                     continue
 
@@ -314,6 +323,9 @@ def run_sq_nn_tests(filename, dir_quant, dir_target,L, RAM, N_trials=3, b_cpu=Tr
 
                 # Create machine learning models for each evaluation step
                 list_model_odq = []
+
+
+
                 if DATASET is server_power:
                     generate_model = generate_model_square
                 elif DATASET is home_energy:
@@ -421,7 +433,7 @@ def run_sq_nn_tests(filename, dir_quant, dir_target,L, RAM, N_trials=3, b_cpu=Tr
                         os.mkdir(dir_target_full)
 
                 with open(os.path.join(dir_target_full,
-                                       filename_base + 'lr{1}_std{2}_f{3}_c{4}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, int(b_usefreq), int(b_costmae))), 'wb') as fid:
+                                       filename_base + 'lr{1}_std{2}_f{3}_c{4}_L{5}_RAM{6}_results_trial{0}_reduced.pkl'.format(ind_loop, lr, std_noise, int(b_usefreq), int(b_costmae),L, RAM)), 'wb') as fid:
                     pkl.dump(dict_out, fid)
 
                 # Reset Tensorflow session to prevent memory growth
@@ -459,11 +471,18 @@ if __name__ == '__main__':
 
     dir_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
-    if(args.ANNArch == 'sq'):
+    print(args.ANNArch[0])
+
+    if str(args.ANNArch[0]) == 'sq':
+
+        L = args.L[0]
+        RAM = args.RAM[0]
+        print('Yes Square ! L = ',L, 'RAM = ', RAM)
         p_run_nn_tests = partial(run_sq_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
                              b_cpu=args.cpu, b_usefreq=args.usefreq, b_costmae=args.costmae,
-                             list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8, L = args.L, RAM = args.RAM, )
+                             list_lr=args.lr, L=L, RAM=RAM, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8, )
     else:
+        print('Deafult !')
         p_run_nn_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
                                  b_cpu=args.cpu, b_usefreq=args.usefreq, b_costmae=args.costmae,
                                  list_lr=args.lr, list_std_noise=args.std, TRAIN_VAL_RATIO=0.8, )
