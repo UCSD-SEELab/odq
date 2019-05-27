@@ -1,9 +1,11 @@
+import sys
 import numpy as np
 
 from keras import Model
 from keras.layers import Input, Dense, Dropout, GaussianNoise
 from keras.optimizers import Adam, SGD
 from keras import backend as K
+from keras.constraints import maxnorm
 from functools import partial
 import tensorflow as tf
 
@@ -121,19 +123,57 @@ def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_c
         model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
     return model_nn
 
-def generate_model_square(N_x, N_y, N_layer, N_weights, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd'):
+def generate_model_square(N_x, N_y, N_layer, N_weights, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
     """
-    description
+    Generate a fully connected neural network architecture that has 'N_layer' hidden layers with a maximum number of
+    'N_weights' parameters
 
-    N_layer:
-    N_weights:
+    Since the model is rectangular, we can calculate the number of neurons per layer using the following equations:
+
+    N_weights = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y + (N_layer+1)
+                 input         hidden layers       output        bias
+
+    0 = (N_layer)*N_width**2 + (N_x + N_y + N_layer + 1)*N_width + (N_y + N_weights + N_layer + 1)
+
+    Solve using quadratic equation.
     """
+    a = N_layer
+    b = N_x + N_y + N_layer + 1
+    c = - N_y + N_weights + N_layer + 1
 
-    layer_input = Input(shape=(N_x,))
+    N_width = -b + np.sqrt(b**2 - 4*a*c)
 
-    layer_out = Dense(N_y)(layer_input)
+    discriminant = b * b - 4 * a * c
+    if discriminant > 0:
+        rt = np.sqrt(discriminant)
+        root1 = (-b + rt) / (2 * a)
+    else:
+        print('ERROR in generate_model_square parameters')
+        sys.exit()
 
+    N_width = int(root1)  # Number of neurons
+
+    total_weights_test = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y + (N_layer+1)
+
+    # print("Device RAM size = ", N_weights)
+    # print("Total ANN weights using the positive value of root", total_weights_test)
+    # print("Number of hidden layers = ", N_layer)
+
+    layer_input = Input(shape=(N_x,))  # Input features
+
+    for i in range(0, N_layer):
+        if (i == 0):
+            layer = Dense(N_width, activation='relu')(layer_input)
+            layer = Dropout(0.2)(layer)
+        else:
+            layer = Dense(N_width, activation='relu')(layer)
+            layer = Dropout(0.5)(layer)
+
+    layer_out = Dense(N_y)(layer)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
+
+    print(model_nn.summary())
+
     if optimizer == 'sgd':
         optimizer = SGD(lr=lr, decay=decay)
     elif optimizer == 'adam':

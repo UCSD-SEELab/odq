@@ -3,14 +3,15 @@ import pickle as pkl
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import compress
+import matplotlib.font_manager
 import argparse
 
 
 if __name__ == '__main__':
-    directory_target = 'metasense12_imbalanced_20190407'
-    list_filename_base = ['metasense']
+    directory_target = 'ann_test_home_energy_201905031'
+    list_filename_base = ['home_energy']
     plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
-    FLAG_SAVE_COMPUTATION = True
+    FLAG_SAVE_COMPUTATION = False
     filename_save = 'results_metasense12_imbalanced_20190407.pkl'
 
     directory = os.path.join(os.path.dirname(__file__), 'raw', directory_target)
@@ -58,7 +59,8 @@ if __name__ == '__main__':
 
             # list_filepieces = file.split(sep=temp_filename_base)[-1].split(sep='_')
             list_filepieces = file.split(sep='_')
-            compression_ratio = float(list_filepieces[-7]) // TODO: Update to nonstatic mapping
+            compression_ratio = float(list_filepieces[-11])
+            print(compression_ratio)
             filetype = list_filepieces[-1]
 
             if N_datapoints < 0 and any([dict_key == 'N_datapoints' for dict_key in data_temp.keys()]):
