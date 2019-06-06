@@ -17,7 +17,7 @@ def load(board_num=11):
     'absolute-humidity', 'board', 'location', 'round', 'epa-o3', 'epa-no2'
     """
     list_features = ['no2', 'o3', 'co', 'temperature', 'humidity', 'absolute-humidity']
-    list_targets =  ['epa-o3', 'epa-no2']
+    list_targets =  ['epa-o3']#, 'epa-no2']
 
     cols_target = list_features + list_targets
 

@@ -766,7 +766,7 @@ if __name__ == '__main__':
     if args.dir is not None:
         dir_target = args.dir
     else:
-        dir_target = 'metasense_test_cov_max2_20190401' // TODO: Throw error instead
+        dir_target = 'metasense_test_cov_max2_20190401' # TODO: Throw error instead
 
     N_trials = args.N[0]
 

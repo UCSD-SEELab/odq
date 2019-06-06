@@ -15,6 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_max_cov2, calc_weights_unit_var, \
                     calc_weights_max_norm, calc_weights_max_cov_gauss, calc_weights_pr_squeeze, calc_weights_incorrect, \
                     calc_weights_imbalanced, calc_weights_x_y_tradeoff, calc_weights_singlex, calc_weights_singley
+from odq.omes import OnlineMaxEntropySelector
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power, metasense
 
@@ -69,8 +70,10 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, help='Target directory to save generated files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of iterations to generate.', default=[5])
     parser.add_argument('--dataset', type=str, help='Dataset to use (home_energy, server_power, metasense)')
+    parser.add_argument('--method', type=str, help='Quantizer to use (omes, odq)', default='omes')
     parser.add_argument('--w_type', type=int, nargs='+', help='Type of weight to use in ODQ (1: ones, 2: cov_max2, 3: unit_var, 4: pr_squeeze', default=[3])
     parser.add_argument('--brd', type=int, nargs=1, help='Board number for MetaSense tests', default=[11])
+    parser.add_argument('--k', type=int, nargs='+', help='Size of neighborhood for calculating local gradient', default=[5])
 
     args = parser.parse_args()
 
@@ -161,13 +164,13 @@ if __name__ == '__main__':
     min_max_scaler_x = preprocessing.MinMaxScaler()
     min_max_scaler_y = preprocessing.MinMaxScaler()
 
-    # Construct fixed memory OnlineDatasetQuantizer
+    # Construct fixed memory for quantizer
     N_datapoints = X_train.shape[0]
     N_x = X_train.shape[1]
     N_y = Y_train.shape[1]
 
     # Print point for index decided based on mod(ind, ind_print) == 0
-    ind_print = int(N_datapoints // 10)* np.arange(1, 11).astype(int)
+    ind_print = int(N_datapoints // 100)* np.arange(1, 11).astype(int)
 
     for ind_loop in range(N_iterations):
         # Use same dataset for all compression levels in a given trial. Use loaded data for first loop, otherwise,
@@ -192,65 +195,86 @@ if __name__ == '__main__':
                     'min_max_scaler_x': min_max_scaler_x, 'min_max_scaler_y': min_max_scaler_y,
                     'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'TRAIN_TEST_RATIO': TRAIN_TEST_RATIO}
 
-        list_w_x = []
-        list_w_y = []
-        list_w_imp = []
+        if args.method == 'odq':
+            list_w_x = []
+            list_w_y = []
+            list_w_imp = []
+            for ind, weight_type in enumerate(list_weight_type):
+                if weight_type <= 1:
+                    w_list = np.ones((N_x + N_y))
+                    w_imp = w_list / sum(w_list)
+                elif weight_type == 2:
+                    w_list, w_imp = calc_weights_max_cov2(X_train, Y_train)
+                elif weight_type == 3:
+                    w_list, w_imp = calc_weights_unit_var(X_train, Y_train)
+                elif weight_type == 4:
+                    w_list, w_imp = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
+                elif weight_type == 5:
+                    w_list, w_imp = calc_weights_imbalanced(X_train, Y_train)
+                elif weight_type == 6:
+                    w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.999)
+                elif weight_type == 7:
+                    w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.99)
+                elif weight_type == 8:
+                    w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.01)
+                elif weight_type == 9:
+                    w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.001)
+                elif weight_type == 10:
+                    w_list, w_imp = calc_weights_singlex(X_train, Y_train, ind_x=0)
+                elif weight_type == 11:
+                    w_list, w_imp = calc_weights_singley(X_train, Y_train, ind_y=0)
 
-        for ind, weight_type in enumerate(list_weight_type):
-            if weight_type <= 1:
-                w_list = np.ones((N_x + N_y))
-                w_imp = w_list / sum(w_list)
-            elif weight_type == 2:
-                w_list, w_imp = calc_weights_max_cov2(X_train, Y_train)
-            elif weight_type == 3:
-                w_list, w_imp = calc_weights_unit_var(X_train, Y_train)
-            elif weight_type == 4:
-                w_list, w_imp = calc_weights_pr_squeeze(X_train, Y_train, depth=4)
-            elif weight_type == 5:
-                w_list, w_imp = calc_weights_imbalanced(X_train, Y_train)
-            elif weight_type == 6:
-                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.999)
-            elif weight_type == 7:
-                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.99)
-            elif weight_type == 8:
-                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.01)
-            elif weight_type == 9:
-                w_list, w_imp = calc_weights_x_y_tradeoff(X_train, Y_train, pct=0.001)
-            elif weight_type == 10:
-                w_list, w_imp = calc_weights_singlex(X_train, Y_train, ind_x=0)
-            elif weight_type == 11:
-                w_list, w_imp = calc_weights_singley(X_train, Y_train, ind_y=0)
-
-            list_w_x.append(w_list[:N_x])
-            list_w_y.append(w_list[N_x:])
-            list_w_imp.append(w_imp)
+                list_w_x.append(w_list[:N_x])
+                list_w_y.append(w_list[N_x:])
+                list_w_imp.append(w_imp)
+        else:
+            list_w_x = [np.NaN]
+            list_w_y = [np.NaN]
+            list_w_imp = [np.NaN]
+            list_weight_type = [np.NaN]
 
         for compression_ratio in list_compression_ratio:
+            dict_out['quantizer_type'] = args.method
             dict_out['quantizers'] = []
-            N_saved_odq = int(N_datapoints / compression_ratio * (N_x + N_y) / (N_x + N_y + 2) * TRAIN_VAL_RATIO)
+            if args.method == 'odq':
+                N_saved_quantizer = int(N_datapoints / compression_ratio * (N_x + N_y) / (N_x + N_y + 2) * TRAIN_VAL_RATIO)
+            else:
+                N_saved_quantizer = int(N_datapoints / compression_ratio * (N_x + N_y) / (2*N_x + N_y + args.k[0] + 1))
             N_saved_res = int(N_datapoints / compression_ratio)
-            print('\n\nCompression Ratio {0}: {1} -> odq:{2} res:{3}'.format(compression_ratio, N_datapoints, N_saved_odq, N_saved_res))
+            print('\n\nCompression Ratio {0}: {1} -> {4}:{2} res:{3}'.format(compression_ratio, N_datapoints, N_saved_quantizer, N_saved_res, args.method))
             list_quantizers = []
-            for w_x, w_y in zip(list_w_x, list_w_y):
-                list_quantizers.append(OnlineDatasetQuantizer(num_datapoints_max=N_saved_odq, num_input_features=N_x, num_target_features=N_y,
-                                                   w_x_columns=w_x, w_y_columns=w_y))
+            if args.method == 'odq':
+                for w_x, w_y in zip(list_w_x, list_w_y):
+                    list_quantizers.append(OnlineDatasetQuantizer(num_datapoints_max=N_saved_quantizer,
+                                                                  num_input_features=N_x,
+                                                                  num_target_features=N_y,
+                                                                  w_x_columns=w_x, w_y_columns=w_y))
+            else:
+                list_quantizers.append(OnlineMaxEntropySelector(num_datapoints_max=N_saved_quantizer,
+                                                                num_input_features=N_x,
+                                                                num_target_features=N_y,
+                                                                num_neighbors=args.k[0]))
 
             reservoir_sampler = ReservoirSampler(num_datapoints_max=N_saved_res, num_input_features=N_x, num_target_features=N_y)
 
             for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
                 for quantizer in list_quantizers:
+                    time_start = time.time()
                     quantizer.add_point(X_new, Y_new)
+                    time_end = time.time()
+                    print('ind: {0}  time:{1:0.2f}'.format(ind, 1000 * (time_end - time_start)))
+
                 reservoir_sampler.add_point(X_new, Y_new)
 
                 if ind in ind_print:
                     print('  {0} / {1}'.format(ind, N_datapoints))
 
-                if (ind in ind_assess):
-                    for quantizer, w_type in zip(list_quantizers, list_weight_type):
-                        quantizer.plot_hist(title_in='ODQ Hist (w_type {1}, {0} samples)'.format(ind, w_type), fig_num=10, b_save_fig=True,
-                                            title_save='odq_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
-                    reservoir_sampler.plot_hist(title_in='Reservoir Hist ({0} samples)'.format(ind), fig_num=20,
-                                                b_save_fig=True, title_save='res_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
+                #if (ind in ind_assess):
+                #    for quantizer, w_type in zip(list_quantizers, list_weight_type):
+                #        quantizer.plot_hist(title_in='ODQ Hist (w_type {1}, {0} samples)'.format(ind, w_type), fig_num=10, b_save_fig=True,
+                #                            title_save='odq_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
+                #    reservoir_sampler.plot_hist(title_in='Reservoir Hist ({0} samples)'.format(ind), fig_num=20,
+                #                                b_save_fig=True, title_save='res_{0}_{1}_{{}}_{2}'.format(filename_base, compression_ratio, ind))
 
             for quantizer, w_x, w_y, w_imp, w_type in zip(list_quantizers, list_w_x, list_w_y, list_w_imp, list_weight_type):
                 dict_out['quantizers'].append({'quantizer':quantizer, 'w_x': w_x, 'w_y': w_y, 'w_imp': w_imp, 'w_type': w_type})
