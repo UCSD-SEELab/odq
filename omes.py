@@ -277,6 +277,12 @@ class OnlineMaxEntropySelector(object):
                 # if ind > 0:
                 #     print('pause')
                 ind += 1
+
+                if ind > 5*self.num_neighbors:
+                    print('ERROR in update_neighborhood: ind {0}'.format(ind))
+                    print('ind_neighbors_curr {0}'.format(ind_neighbors_curr))
+                    print('ind_neighbors_prev {0}'.format(ind_neighbors_prev))
+                    break
                 # Reduce by 50% if sufficient neighbors remain. Otherwise, reduce neighbors by eliminating farthest
                 # remaining neighbor according to list_dist
                 if len(list_neighbors_possible) >= 4*self.num_neighbors:

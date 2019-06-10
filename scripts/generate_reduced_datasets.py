@@ -170,7 +170,9 @@ if __name__ == '__main__':
     N_y = Y_train.shape[1]
 
     # Print point for index decided based on mod(ind, ind_print) == 0
-    ind_print = int(N_datapoints // 100)* np.arange(1, 11).astype(int)
+    N_print_segs = 100
+
+    ind_print = int(N_datapoints // N_print_segs)* np.arange(1, N_print_segs + 1).astype(int)
 
     for ind_loop in range(N_iterations):
         # Use same dataset for all compression levels in a given trial. Use loaded data for first loop, otherwise,
@@ -262,7 +264,7 @@ if __name__ == '__main__':
                     time_start = time.time()
                     quantizer.add_point(X_new, Y_new)
                     time_end = time.time()
-                    print('ind: {0}  time:{1:0.2f}'.format(ind, 1000 * (time_end - time_start)))
+                    # print('ind: {0}  time:{1:0.2f}'.format(ind, 1000 * (time_end - time_start)))
 
                 reservoir_sampler.add_point(X_new, Y_new)
 
