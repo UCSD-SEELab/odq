@@ -215,10 +215,7 @@ class OnlineMaxEntropySelector(object):
         """
         Returns sample weights
         """
-        if self.b_density:
-            return self.dataset[:self.ind_curr, self.ind_density]
-        else:
-            return np.ones(self.ind_curr)
+        return np.ones(self.ind_curr)
 
     def get_dataset(self):
         """
@@ -385,10 +382,7 @@ class OnlineMaxEntropySelector(object):
         plt.title(title_in)
         # plt.ylim((-3, 11))
         # plt.xlim((-7, 7))
-        if self.b_density:
-            plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]], s=1 + (0.2 * (self.dataset[:self.ind_curr, self.ind_density] - 1)))
-        else:
-            plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]])
+        plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]])
         plt.grid(True)
         plt.tight_layout()
 
