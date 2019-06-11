@@ -801,7 +801,7 @@ if __name__ == '__main__':
         print('Invalid test type.')
         sys.exit()
 
-    DEBUG = True
+    DEBUG = False
     if DEBUG == True:
         for filename in os.listdir(os.path.join(dir_quant, dir_target)):
             p_run_tests(filename=filename)
