@@ -24,7 +24,7 @@ def custom_loss_function_step (y_true, y_pred , b=0 ) :
     alpha = 0.5 * (tf.sign(y_true - b) + 1)
     return alpha*K.mean(K.square(y_pred - y_true))
 
-def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
+def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.01, decay=1e-4, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
     """
     Create neural network model for the server power dataset
     """
@@ -57,7 +57,7 @@ def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, 
         model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
     return model_nn
 
-def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
+def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.01, decay=1e-4, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
     """
     Create neural network model for the home energy dataset
     """
@@ -92,18 +92,26 @@ def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b
         model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
     return model_nn
 
-def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
+def generate_model_metasense(N_x, N_y, lr=0.01, decay=1e-4, optimizer='sgd', loss='mean_squared_error',
+                             b_custommodel=False, model_cfg={'N_layer':2, 'N_weights':10000}):
     """
-    Create neural network model
+    Create neural network model.
+
+    If b_custommodel is set to True, then a square model that adheres to size ('N_weights') and depth ('N_layer')
+    requirements will be generated.
     """
-    layer_input = Input(shape=(N_x,))  # Input features
-    layer1 = GaussianNoise(stddev=std_noise)(layer_input)
-    layer1 = Dense(200, activation='relu')(layer_input)
-    layer1 = Dropout(0.5)(layer1)
-    layer2 = Dense(200, activation='relu')(layer1)
-    layer2 = Dropout(0.5)(layer2)
-    layer_out = Dense(N_y)(layer2)
-    model_nn = Model(inputs=layer_input, outputs=layer_out)
+    if b_custommodel == False:
+        layer_input = Input(shape=(N_x,))  # Input features
+        layer1 = Dense(100, activation='relu')(layer_input)
+        layer1 = Dropout(0.5)(layer1)
+        layer2 = Dense(100, activation='relu')(layer1)
+        layer2 = Dropout(0.5)(layer2)
+        layer_out = Dense(N_y)(layer2)
+        model_nn = Model(inputs=layer_input, outputs=layer_out)
+
+    else:
+        model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'], N_weights=model_cfg['N_weights'])
+
     if optimizer == 'sgd':
         optimizer = SGD(lr=lr, decay=decay)
     elif optimizer == 'adam':
@@ -117,43 +125,54 @@ def generate_model_metasense(N_x, N_y, std_noise=0.01, lr=0.001, decay=1e-6, b_c
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
 
-    if b_costmae:
-        model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
-    else:
-        model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+    model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+
     return model_nn
 
-def generate_model_square(N_x, N_y, N_layer, N_weights, std_noise=0.01, lr=0.001, decay=1e-6, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
+def generate_model_square(N_x, N_y, N_layer, N_weights, lr=0.01, decay=1e-4, optimizer='sgd', loss='mean_squared_error'):
+    """
+    Wrapper to generate a fully connected neural network architecture
+    """
+    model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=N_layer, N_weights=N_weights)
+
+    if optimizer == 'sgd':
+        optimizer = SGD(lr=lr, decay=decay)
+    elif optimizer == 'adam':
+        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
+    if loss == 'sigmoid':
+        loss_sig_b = 32.624
+        loss_sig_m = 0.125
+        loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
+    elif loss == 'step':
+        loss_step_b = 1
+        loss = partial(custom_loss_function_step, b=loss_step_b)
+
+    model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+
+    return model_nn
+
+def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
     """
     Generate a fully connected neural network architecture that has 'N_layer' hidden layers with a maximum number of
     'N_weights' parameters
 
     Since the model is rectangular, we can calculate the number of neurons per layer using the following equations:
 
-    N_weights = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y + (N_layer+1)
-                 input         hidden layers       output        bias
+    N_weights = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y
+                 input              hidden layers                      output
 
-    0 = (N_layer)*N_width**2 + (N_x + N_y + N_layer + 1)*N_width + (N_y + N_weights + N_layer + 1)
+    0 = (N_layer)*N_width**2 + (N_x + N_y + N_layer + 1)*N_width + (N_y + N_weights)
 
     Solve using quadratic equation.
     """
     a = N_layer
     b = N_x + N_y + N_layer + 1
-    c = - N_y + N_weights + N_layer + 1
+    c = - N_y + N_weights
 
     N_width = -b + np.sqrt(b**2 - 4*a*c)
 
-    discriminant = b * b - 4 * a * c
-    if discriminant > 0:
-        rt = np.sqrt(discriminant)
-        root1 = (-b + rt) / (2 * a)
-    else:
-        print('ERROR in generate_model_square parameters')
-        sys.exit()
-
-    N_width = int(root1)  # Number of neurons
-
-    total_weights_test = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y + (N_layer+1)
+    total_weights_test = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y
 
     # print("Device RAM size = ", N_weights)
     # print("Total ANN weights using the positive value of root", total_weights_test)
@@ -172,17 +191,8 @@ def generate_model_square(N_x, N_y, N_layer, N_weights, std_noise=0.01, lr=0.001
     layer_out = Dense(N_y)(layer)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
 
-    print(model_nn.summary())
+    # print(model_nn.summary())
 
-    if optimizer == 'sgd':
-        optimizer = SGD(lr=lr, decay=decay)
-    elif optimizer == 'adam':
-        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-
-    if b_costmae:
-        model_nn.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mse', 'mae'])
-    else:
-        model_nn.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mse', 'mae'])
     return model_nn
 
 def train_test_split(X, Y, pct_train=0.8, weights=None):

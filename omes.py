@@ -222,7 +222,7 @@ class OnlineMaxEntropySelector(object):
         Returns X and Y values from current dataset
         """
         return self.dataset[:self.ind_curr, :self.num_x], \
-               self.dataset[:self.ind_curr, self.num_x:(self.ind_features + 1)]
+               self.dataset[:self.ind_curr, self.num_x:]
 
     def update_neighborhood(self, ind_in=None, data_in=None, grad_local_x=None, ind_neighbors_init=None, b_member=False):
         """
@@ -362,8 +362,8 @@ class OnlineMaxEntropySelector(object):
         """
         Update the minimum distance calculation for point at ind_update
         """
-        temp_dist = dist_L2(self.dataset[ind_min, :(self.ind_features + 1)],
-                            self.dataset[:(self.ind_curr + 1), :(self.ind_features + 1)], w=self.w)
+        temp_dist = dist_L2(self.dataset[ind_min, :],
+                            self.dataset[:(self.ind_curr + 1), :], w=self.w)
         temp_dist[ind_min] = np.inf
         ind_update = np.where(self.dataset[:self.ind_curr, self.ind_dist] > temp_dist)
         self.dataset[ind_update, self.ind_dist] = temp_dist[ind_update]
@@ -396,7 +396,7 @@ class OnlineMaxEntropySelector(object):
         """
         Plot histrograms of each parameter distribution
         """
-        n_fig = ((self.ind_features + 1) // 12) + 1
+        n_fig = ((self.num_x + self.num_y + 1) // 12) + 1
 
         ind_feature = 0
 
@@ -417,11 +417,11 @@ class OnlineMaxEntropySelector(object):
                     subplot_el.hist(self.dataset[:, ind_feature], bins=20, density=True)
                     subplot_el.set_xlabel('Feature {0}'.format(ind_feature))
                     ind_feature += 1
-                    if ind_feature > self.ind_features:
+                    if ind_feature > (self.num_x + self.num_y):
                         break
-                if ind_feature > self.ind_features:
+                if ind_feature > (self.num_x + self.num_y):
                     break
-            if ind_feature > self.ind_features:
+            if ind_feature > (self.num_x + self.num_y):
                 break
 
             plt.tight_layout()
