@@ -325,10 +325,13 @@ class OnlineDatasetQuantizer(object):
 
         self.dist_min = 100 # TODO initialize minimum distance properly
 
+        self.total_processed = 0
+
     def add_point(self, x, y):
         """
         Add current (x, y) pairing to dataset
         """
+        self.total_processed += 1
 
         # TODO Check that dimensions are correct
 
@@ -473,6 +476,9 @@ class OnlineDatasetQuantizer(object):
         """
         Plots distribution in up to 3 dimensions
         """
+        if not(hasattr(self, 'total_processed')):
+            self.total_processed = 0
+
         # TODO Add ind_dims to input variables and update plots to adapt to ind_dims
 
         plt.figure(fig_num)
@@ -484,11 +490,14 @@ class OnlineDatasetQuantizer(object):
             plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]], s=1 + (0.2 * (self.dataset[:self.ind_curr, self.ind_density] - 1)))
         else:
             plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]])
+        plt.xlabel('Data Column {0}'.format(ind_dims[0]))
+        plt.ylabel('Data Column {0}'.format(ind_dims[1]))
         plt.grid(True)
         plt.tight_layout()
 
         if b_save_fig:
-            plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img', '{0}.png'.format(title_save)))
+            plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img',
+                                     '{0}_{1}.png'.format(title_save, self.total_processed)))
         else:
             plt.draw()
             plt.pause(PLOT_DELAY / 2)
@@ -497,6 +506,9 @@ class OnlineDatasetQuantizer(object):
         """
         Plot histrograms of each parameter distribution
         """
+        if not(hasattr(self, 'total_processed')):
+            self.total_processed = 0
+
         n_fig = ((self.ind_features + 1) // 12) + 1
 
         ind_feature = 0
@@ -518,20 +530,22 @@ class OnlineDatasetQuantizer(object):
                     subplot_el.hist(self.dataset[:, ind_feature], bins=20, density=True)
                     subplot_el.set_xlabel('Feature {0}'.format(ind_feature))
                     ind_feature += 1
-                    if ind_feature > self.ind_features:
+                    if ind_feature >= self.ind_features:
                         break
-                if ind_feature > self.ind_features:
+                if ind_feature >= self.ind_features:
                     break
-            if ind_feature > self.ind_features:
-                break
 
             plt.tight_layout()
 
             if b_save_fig:
-                plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img', 'hist_{0}.png'.format(title_save.format(ind_fig))))
+                plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img',
+                                         '{0}_hist_{1}_{2}.png'.format(title_save, ind_fig, self.total_processed)))
             else:
                 plt.draw()
                 plt.pause(PLOT_DELAY / 2)
+
+            if ind_feature >= self.ind_features:
+                break
 
 
 if __name__ == '__main__':

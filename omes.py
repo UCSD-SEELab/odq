@@ -40,6 +40,8 @@ class OnlineMaxEntropySelector(object):
         self.max_dist_neighbs[:] = np.nan
         self.ind_curr = 0
 
+        self.total_processed = 0
+
     def add_point(self, x, y):
         """
         Add current (x, y) pairing to dataset
@@ -80,6 +82,8 @@ class OnlineMaxEntropySelector(object):
                     re-evaluate neighborhood
 
         """
+        self.total_processed += 1
+
         if (not(x.shape[0] == self.num_x) or not(y.shape[0] == self.num_y)):
             print('ERROR: OnlineMaxEntropySelector add_point: dimensions incorrect')
             return
@@ -324,7 +328,7 @@ class OnlineMaxEntropySelector(object):
         else:
             x_neighbors = np.append(x_neighbors, np.ones((x_neighbors.shape[0], 1)), axis=1)
 
-        grad_local = np.linalg.lstsq(x_neighbors, y_neighbors)
+        grad_local = np.linalg.lstsq(x_neighbors, y_neighbors, rcond=None)
 
         return np.abs(grad_local[0]).flatten()[:-1]
 
@@ -371,10 +375,13 @@ class OnlineMaxEntropySelector(object):
         # Update distance for point that was updated
         self.dataset[ind_min, self.ind_dist] = temp_dist.min()
 
-    def plot(self, title_in='ODQ', ind_dims=[0, 1], fig_num=1, b_save_fig=False, title_save='ODQ_hist'):
+    def plot(self, title_in='OMES', ind_dims=[0, 1], fig_num=1, b_save_fig=False, title_save='omes_hist'):
         """
         Plots distribution in up to 3 dimensions
         """
+        if not(hasattr(self, 'total_processed')):
+            self.total_processed = 0
+
         # TODO Add ind_dims to input variables and update plots to adapt to ind_dims
 
         plt.figure(fig_num)
@@ -383,19 +390,25 @@ class OnlineMaxEntropySelector(object):
         # plt.ylim((-3, 11))
         # plt.xlim((-7, 7))
         plt.scatter(self.dataset[:self.ind_curr, ind_dims[0]], self.dataset[:self.ind_curr, ind_dims[1]])
+        plt.xlabel('Data Column {0}'.format(ind_dims[0]))
+        plt.ylabel('Data Column {0}'.format(ind_dims[1]))
         plt.grid(True)
         plt.tight_layout()
 
         if b_save_fig:
-            plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img', '{0}.png'.format(title_save)))
+            plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img',
+                                     '{0}_{1}.png'.format(title_save, self.total_processed)))
         else:
             plt.draw()
             plt.pause(PLOT_DELAY / 2)
 
-    def plot_hist(self, title_in='ODQ Features', fig_num=10, b_save_fig=False, title_save='ODQ_hist'):
+    def plot_hist(self, title_in='OMES Features', fig_num=10, b_save_fig=False, title_save='omes_hist'):
         """
         Plot histrograms of each parameter distribution
         """
+        if not(hasattr(self, 'total_processed')):
+            self.total_processed = 0
+
         n_fig = ((self.num_x + self.num_y + 1) // 12) + 1
 
         ind_feature = 0
@@ -417,21 +430,22 @@ class OnlineMaxEntropySelector(object):
                     subplot_el.hist(self.dataset[:, ind_feature], bins=20, density=True)
                     subplot_el.set_xlabel('Feature {0}'.format(ind_feature))
                     ind_feature += 1
-                    if ind_feature > (self.num_x + self.num_y):
+                    if ind_feature >= (self.num_x + self.num_y):
                         break
-                if ind_feature > (self.num_x + self.num_y):
+                if ind_feature >= (self.num_x + self.num_y):
                     break
-            if ind_feature > (self.num_x + self.num_y):
-                break
 
             plt.tight_layout()
 
             if b_save_fig:
-                plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img', 'hist_{0}.png'.format(title_save.format(ind_fig))))
+                plt.savefig(os.path.join(os.path.dirname(__file__), 'results', 'img',
+                                         '{0}_hist_{1}_{2}.png'.format(title_save, ind_fig, self.total_processed)))
             else:
                 plt.draw()
                 plt.pause(PLOT_DELAY / 2)
 
+            if ind_feature >= (self.num_x + self.num_y):
+                break
 
 if __name__ == '__main__':
     plt.ion()
@@ -475,7 +489,7 @@ if __name__ == '__main__':
             datapoint_full[0] = datapoint_raw[0]
             datapoint_full[-1] = 4 - 3*datapoint_raw[0] + 0.01 * datapoint_raw[1]
 
-    # Run N points of the distribution through ODQ
+    # Run N points of the distribution through OMES
     quantizer = OnlineMaxEntropySelector(N_saved, N_dim - 1, 1)
 
     for ind, datapoint in enumerate(dataset_full):
@@ -487,7 +501,7 @@ if __name__ == '__main__':
 
         if FLAG_PLOT:
             if ind % 100 == 0:
-                quantizer.plot('ODQ Sample {0:5d}'.format(ind))
+                quantizer.plot('OMES Sample {0:5d}'.format(ind))
 
 
     data = quantizer.dataset
