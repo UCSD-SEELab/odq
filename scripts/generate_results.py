@@ -126,7 +126,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                 os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
                              dir_target,
                              filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(
-                                 quantizer_type, lr, ind_loop, lr, costtype, ind_loop))):
+                                 quantizer_type, lr, costtype, ind_loop))):
             print('  File already processed')
             continue
 
@@ -193,22 +193,22 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
             history_temp = model_quant.fit(X_fit, Y_fit, batch_size=64, epochs=N_epochs, verbose=0,
                                                validation_data=(X_val, Y_val))
-            history_odq = history_temp.history
-            history_odq['epoch'] = history_temp.epoch
+            history_quant = history_temp.history
+            history_quant['epoch'] = history_temp.epoch
 
-            score_odq = model_quant.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
+            score_quant = model_quant.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
-            Y_odq_predict = min_max_scaler_y.inverse_transform(model_quant.predict(min_max_scaler_x.transform(X_test)))
+            Y_quant_predict = min_max_scaler_y.inverse_transform(model_quant.predict(min_max_scaler_x.transform(X_test)))
 
-            results_odq_rmse = np.sqrt(np.mean((Y_odq_predict - Y_test)**2, axis=0))
+            results_quant_rmse = np.sqrt(np.mean((Y_quant_predict - Y_test)**2, axis=0))
 
             print('{0} {6} CR {1} ({2} of {3}) RMSE: {4} Time: {5:0.2f} s'.format(filename, compression_ratio,
-                ind_loop + 1, N_trials, np.array2string(results_odq_rmse, precision=2, suppress_small=True),
+                ind_loop + 1, N_trials, np.array2string(results_quant_rmse, precision=2, suppress_small=True),
                 time.time() - time_start, quantizer_type))
 
-            dict_out['history_{0}'.format(quantizer_type)] = history_odq
-            dict_out['score_{0}'.format(quantizer_type)] = score_odq
-            dict_out['Y_odq_predict_{0}'.format(quantizer_type)] = Y_odq_predict
+            dict_out['history_{0}'.format(quantizer_type)] = history_quant
+            dict_out['score_{0}'.format(quantizer_type)] = score_quant
+            dict_out['Y_quant_predict_{0}'.format(quantizer_type)] = Y_quant_predict
 
             # Save all results for subsequent processing
             dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
@@ -217,7 +217,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
         with open(os.path.join(dir_target_full,
                                filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type,
-                               lr, ind_loop, lr, costtype, ind_loop)), 'wb') as fid:
+                               lr, costtype, ind_loop)), 'wb') as fid:
             pkl.dump(dict_out, fid)
 
         # Reset Tensorflow session to prevent memory growth
@@ -364,31 +364,31 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
                     history_temp = model_quant.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp,
                                                  verbose=0,
                                                  validation_data=(X_val, Y_val))
-                    history_odq = history_temp.history
-                    history_odq['epoch'] = history_temp.epoch
+                    history_quant = history_temp.history
+                    history_quant['epoch'] = history_temp.epoch
 
-                    score_odq = model_quant.evaluate(min_max_scaler_x.transform(X_test),
+                    score_quant = model_quant.evaluate(min_max_scaler_x.transform(X_test),
                                                    min_max_scaler_y.transform(Y_test), verbose=0)
 
-                    Y_odq_predict = min_max_scaler_y.inverse_transform(
+                    Y_quant_predict = min_max_scaler_y.inverse_transform(
                         model_quant.predict(min_max_scaler_x.transform(X_test)))
 
-                    results_odq_rmse = np.sqrt(np.mean((Y_odq_predict - Y_test) ** 2, axis=0))
+                    results_quant_rmse = np.sqrt(np.mean((Y_quant_predict - Y_test) ** 2, axis=0))
 
-                    print('{0}: {5} LR: {1} Decay: {2} RMSE: {3} Time: {4:0.2f} s'.format(filename, lr, decay, np.array2string(results_odq_rmse, precision=2, suppress_small=True), time.time() - time_start, quantizer))
+                    print('{0}: {5} LR: {1} Decay: {2} RMSE: {3} Time: {4:0.2f} s'.format(filename, lr, decay, np.array2string(results_quant_rmse, precision=2, suppress_small=True), time.time() - time_start, quantizer))
 
                     plt.figure()
                     plt.title('Quantizer {4} CR {3} trial {0} lr={1} decay={2}'.format(ind_loop, lr, decay, compression_ratio,
                                                                                   quantizer_type))
-                    plt.plot(history_odq['epoch'], history_odq['mean_squared_error'])
-                    plt.plot(history_odq['epoch'], history_odq['val_mean_squared_error'])
+                    plt.plot(history_quant['epoch'], history_quant['mean_squared_error'])
+                    plt.plot(history_quant['epoch'], history_quant['val_mean_squared_error'])
                     plt.legend(('Train', 'Test'))
                     plt.savefig(os.path.join(dir_img_full, 'Convergence_' + filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop)))
                     plt.close()
 
-                    dict_out['history_{0}'.format(quantizer_type)] = history_odq
-                    dict_out['score_{0}'.format(quantizer_type)] = score_odq
-                    dict_out['Y_odq_predict_{0}'.format(quantizer_type)] = Y_odq_predict
+                    dict_out['history_{0}'.format(quantizer_type)] = history_quant
+                    dict_out['score_{0}'.format(quantizer_type)] = score_quant
+                    dict_out['Y_quant_predict_{0}'.format(quantizer_type)] = Y_quant_predict
 
                 # Save all results for subsequent processing
                 with open(os.path.join(dir_target_full, filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop)), 'wb') as fid:
@@ -689,31 +689,31 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
                     sample_weight = None
                 history_temp = model_quant.fit(X_temp, Y_temp, batch_size=64, epochs=10, sample_weight=sample_weight, verbose=0,
                                              validation_data=(X_val, Y_val))
-                history_odq = history_temp.history
-                history_odq['epoch'] = history_temp.epoch
+                history_quant = history_temp.history
+                history_quant['epoch'] = history_temp.epoch
                 history_temp = model_quant.fit(X_temp, Y_temp, batch_size=64, epochs=N_epochs, sample_weight=sample_weight, verbose=0,
                                              validation_data=(X_val, Y_val), initial_epoch=10,
                                              callbacks=[cb_earlystopping])
-                history_odq['epoch'].extend(history_temp.epoch)
-                history_odq['val_loss'].extend(history_temp.history['val_loss'])
-                history_odq['val_mean_squared_error'].extend(history_temp.history['val_mean_squared_error'])
-                history_odq['val_mean_absolute_error'].extend(history_temp.history['val_mean_absolute_error'])
-                history_odq['loss'].extend(history_temp.history['loss'])
-                history_odq['mean_squared_error'].extend(history_temp.history['mean_squared_error'])
-                history_odq['mean_absolute_error'].extend(history_temp.history['mean_absolute_error'])
+                history_quant['epoch'].extend(history_temp.epoch)
+                history_quant['val_loss'].extend(history_temp.history['val_loss'])
+                history_quant['val_mean_squared_error'].extend(history_temp.history['val_mean_squared_error'])
+                history_quant['val_mean_absolute_error'].extend(history_temp.history['val_mean_absolute_error'])
+                history_quant['loss'].extend(history_temp.history['loss'])
+                history_quant['mean_squared_error'].extend(history_temp.history['mean_squared_error'])
+                history_quant['mean_absolute_error'].extend(history_temp.history['mean_absolute_error'])
 
-                score_odq = model_quant.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
+                score_quant = model_quant.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
 
-                Y_odq_predict = min_max_scaler_y.inverse_transform(model_quant.predict(min_max_scaler_x.transform(X_test)))
+                Y_quant_predict = min_max_scaler_y.inverse_transform(model_quant.predict(min_max_scaler_x.transform(X_test)))
 
-                results_odq_rmse = np.sqrt(np.mean((Y_odq_predict - Y_test)**2, axis=0))
+                results_quant_rmse = np.sqrt(np.mean((Y_quant_predict - Y_test)**2, axis=0))
 
-                print('    RMSE: {0}'.format(np.array2string(results_odq_rmse, precision=2, suppress_small=True)))
+                print('    RMSE: {0}'.format(np.array2string(results_quant_rmse, precision=2, suppress_small=True)))
                 print('    Time: {0:0.2f} s'.format(time.time() - time_start))
 
-                dict_out['history_{0}'.format(quantizer_type)] = history_odq
-                dict_out['score_{0}'.format(quantizer_type)] = score_odq
-                dict_out['Y_odq_predict_{0}'.format(quantizer_type)] = Y_odq_predict
+                dict_out['history_{0}'.format(quantizer_type)] = history_quant
+                dict_out['score_{0}'.format(quantizer_type)] = score_quant
+                dict_out['Y_quant_predict_{0}'.format(quantizer_type)] = Y_quant_predict
 
                 # Save all results for subsequent processing
                 dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
