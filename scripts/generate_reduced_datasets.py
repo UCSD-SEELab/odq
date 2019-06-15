@@ -213,7 +213,7 @@ def _run_quantization(ind_loop):
         for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
             for quantizer in list_quantizers:
                 time_start = time.time()
-                quantizer.add_point(X_new, Y_new)
+                quantizer['quantizer'].add_point(X_new, Y_new)
                 time_end = time.time()
                 # print('ind: {0}  time:{1:0.2f}'.format(ind, 1000 * (time_end - time_start)))
 
