@@ -82,6 +82,23 @@ def _run_quantization(ind_loop):
     """
     Perform dataset compression using random sampling (reservoir) and quantization methods in list_methods.
     Functionalized to be compatible with Python Pool multiprocessing feature
+
+    Structure of output dictionary:
+
+        dict_out
+            dataset_name
+            compression_ratio
+            X_test
+            Y_test
+            X_train
+            Y_train
+            min_max_scaler_x
+            min_max_scaler_y
+            train_test_ratio
+            train_val_ratio
+            quantizers
+                desc
+                quantizer
     """
     # Shuffle the dataset
     if DATASET is home_energy:
@@ -109,12 +126,13 @@ def _run_quantization(ind_loop):
     min_max_scaler_y.fit(Y_train)
 
     # Generate new sets of weights for selected training set
-    dict_out = {'Y_train': Y_train, 'Y_test': Y_test, 'X_train': X_train, 'X_test': X_test,
+    dict_out = {'dataset_name': args.dataset, 'Y_train': Y_train, 'Y_test': Y_test, 'X_train': X_train, 'X_test': X_test,
                 'min_max_scaler_x': min_max_scaler_x, 'min_max_scaler_y': min_max_scaler_y,
-                'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'TRAIN_TEST_RATIO': TRAIN_TEST_RATIO}
+                'train_val_ratio': TRAIN_VAL_RATIO, 'train_test_ratio': TRAIN_TEST_RATIO}
 
     for compression_ratio in list_compression_ratio:
         dict_out['quantizer_types'] = []
+        dict_out['compression_ratio'] = compression_ratio
 
         list_quantizers = []
         for method in list_methods:
@@ -178,18 +196,19 @@ def _run_quantization(ind_loop):
                                                                              N_saved_quantizer, N_saved_res,
                                                                              method, ind_loop))
             if method.startswith('odq'):
-                list_quantizers.append(OnlineDatasetQuantizer(num_datapoints_max=N_saved_quantizer,
+                list_quantizers.append({'desc': method, 'quantizer': OnlineDatasetQuantizer(num_datapoints_max=N_saved_quantizer,
                                                               num_input_features=N_x,
                                                               num_target_features=N_y,
-                                                              w_x_columns=w_x, w_y_columns=w_y))
+                                                              w_x_columns=w_x, w_y_columns=w_y)})
             elif method.startswith('omes'):
-                list_quantizers.append(OnlineMaxEntropySelector(num_datapoints_max=N_saved_quantizer,
+                list_quantizers.append({'desc': method, 'quantizer': OnlineMaxEntropySelector(num_datapoints_max=N_saved_quantizer,
                                                                 num_input_features=N_x,
                                                                 num_target_features=N_y,
-                                                                num_neighbors=k))
+                                                                num_neighbors=k)})
 
-        reservoir_sampler = ReservoirSampler(num_datapoints_max=N_saved_res, num_input_features=N_x,
-                                             num_target_features=N_y)
+        list_quantizers.append({'desc': 'reservoir', 'quantizer': ReservoirSampler(num_datapoints_max=N_saved_res,
+                                                                                   num_input_features=N_x,
+                                                                                   num_target_features=N_y)})
 
         for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
             for quantizer in list_quantizers:
@@ -198,13 +217,10 @@ def _run_quantization(ind_loop):
                 time_end = time.time()
                 # print('ind: {0}  time:{1:0.2f}'.format(ind, 1000 * (time_end - time_start)))
 
-            reservoir_sampler.add_point(X_new, Y_new)
-
             if ind in ind_print:
                 print('Trial {2}: {0} / {1}'.format(ind, N_datapoints, ind_loop))
 
         dict_out['quantizers'] = list_quantizers
-        dict_out['reservoir_sampler'] = reservoir_sampler
 
         print('  Saving reduced datasets')
         directory_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized',
@@ -255,7 +271,7 @@ if __name__ == '__main__':
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
     ind_assess = [-1] # 5000 * np.arange(1, 35).astype(int)
-    list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1]
+    list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1] # test = np.append([4, 16], 2**(6 + np.arange(5)))[::-1]
     N_iterations = args.N[0]
     metasense_brd = args.brd[0]
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
