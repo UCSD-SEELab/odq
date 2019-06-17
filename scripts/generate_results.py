@@ -143,20 +143,12 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
     if DATASET is home_energy:
         N_epochs = int(max(500, 50*compression_ratio))
-        lr = 0.05
-        decay = 0.0001
     elif DATASET is metasense:
         N_epochs = int(max(200, 15*compression_ratio))
-        lr = 0.05
-        decay = 0.0001
     elif DATASET is server_power:
         N_epochs = int(max(200, 30*compression_ratio))
-        lr = 0.05
-        decay = 0.0001
     else:
         N_epochs = int(max(200, 30*compression_ratio))
-        lr = 0.05
-        decay = 0.0001
 
     for ind_loop in range(N_trials):
         dict_out = {'dataset_name': dataset_name,
@@ -171,7 +163,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
         config_tf_session(b_cpu)
 
         # Find the reservoir data, process, and save validation set
-        quantizer_res = next(entry for entry in list_quantizers if list_quantizers['desc'] == 'reservoir')
+        quantizer_res = next(entry for entry in list_quantizers if entry['desc'] == 'reservoir')
         X_temp, Y_temp = quantizer_res['quantizer'].get_dataset()
 
         X_temp = min_max_scaler_x.transform(X_temp)
@@ -261,7 +253,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
         for quantizer_result in list_quantizer_results:
             print('  {0}'.format(quantizer_result['desc']))
             for model_config in quantizer_result['model_results']:
-                print('    {0}: {1} ({2} s)'.format(model_config['desc', model_config['rmse'], model_config['t_train']]))
+                print('    {0}: {1} ({2} s)'.format(model_config['desc'], model_config['rmse'], model_config['t_train']))
 
         # Save all results for subsequent processing
         dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
@@ -819,11 +811,13 @@ if __name__ == '__main__':
         sys.exit()
 
     if args.cfg is not None:
-        temp_cfg = config.read(args.cfg)
+        config.read(os.path.join(os.path.dirname(__file__), 'configs', args.cfg))
+
         try:
-            list_models = [json.loads(temp_cfg['list_models'][entry].replace('\'', '"')) for entry in temp_cfg['list_models']]
+            list_models = [json.loads(config['list_models'][entry].replace('\'', '"')) for entry in config['list_models']]
         except:
             print('ERROR: Config file parsed incorrectly.')
+            print(sys.exc_info()[0])
             sys.exit()
     else:
         list_models = [{'desc': 'NN_default'}]
@@ -835,7 +829,7 @@ if __name__ == '__main__':
     p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
                           list_models=list_models, TRAIN_VAL_RATIO=0.8)
 
-    DEBUG = False
+    DEBUG = True
     if DEBUG == True:
         for filename in os.listdir(os.path.join(dir_quant, dir_target)):
             p_run_tests(filename=filename)

@@ -192,7 +192,10 @@ def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
     b = N_x + N_y + N_layer + 1
     c = N_y - N_weights
 
-    N_width = (-b + np.sqrt(b**2 - 4*a*c))//(2*a)
+    N_width = (-b + np.sqrt(b**2 - 4*a*c)) / (2*a)
+
+    N_layer = int(N_layer)
+    N_width = int(N_width)
 
     total_weights_test = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y
 
@@ -205,7 +208,7 @@ def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
     for i in range(0, N_layer):
         if (i == 0):
             layer = Dense(N_width, activation='relu')(layer_input)
-            layer = Dropout(0.2)(layer)
+            layer = Dropout(0.5)(layer)
         else:
             layer = Dense(N_width, activation='relu')(layer)
             layer = Dropout(0.5)(layer)
