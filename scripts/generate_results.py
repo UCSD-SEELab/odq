@@ -5,6 +5,9 @@ import argparse
 from functools import partial
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
+from datetime import datetime
+import configparser
+import json
 
 import numpy as np
 from keras.callbacks import EarlyStopping
@@ -45,52 +48,90 @@ def config_tf_session(b_cpu):
     K.set_session(session)
 
 def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
-                 TRAIN_VAL_RATIO = 0.8, b_usefreq=True, costtype=0):
+                 TRAIN_VAL_RATIO = 0.8, list_models=[{'desc': 'NN_default'}]):
     """
     Generate results for neural network processing of the quantized dataset
+
+    Input dictionary for list_models:
+
+        list_models (list)
+            desc
+            cfg
+
+
+    Structure of input dictionary from generate_reduced_datasets.py
+
+        dict_in
+            dataset_name
+            compression_ratio
+            X_test
+            Y_test
+            X_train
+            Y_train
+            min_max_scaler_x
+            min_max_scaler_y
+            train_test_ratio
+            train_val_ratio
+            quantizers (list)
+                desc
+                quantizer
+
+    Structure of output dictionary:
+
+        dict_out
+            dataset_name
+            compression_ratio
+            trial_num
+            min_max_scaler_x
+            min_max_scaler_y
+            X_test
+            Y_test
+            X_val
+            Y_val
+            filename_datasets
+            quantizer_results (list)
+                desc
+                list_models (list)
+                    desc
+                    history
+                    score
+                    Y_predict
+                    rmse
+                    t_train
     """
-    FLAG_OVERWRITE = False
 
     # Check that file is valid
     if not (filename.lower().endswith('.pkl')):
         return
 
     filename_base = filename.replace('quantized.pkl', '')
-
-    if costtype == 0:
-        loss_func = 'mean_squared_error'
-    elif costtype == 1:
-        loss_func = 'mean_absolute_error'
-    elif costtype == 2:
-        loss_func = 'sigmoid'
-    elif costtype == 3:
-        loss_func = 'step'
-
+    str_testtime = datetime.now().strftime('%Y%m%d%H%M%S')
     try:
         with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
-            data_temp = pkl.load(fid)
-        min_max_scaler_x = data_temp['min_max_scaler_x']
-        min_max_scaler_y = data_temp['min_max_scaler_y']
-        if 'quantizers' in data_temp:
-            list_quantizers = data_temp['quantizers']
-        else:
-            list_quantizers = [{'quantizer':data_temp['quantizer']}]
-        reservoir_sampler = data_temp['reservoir_sampler']
-        X_train = data_temp['X_train']
-        Y_train = data_temp['Y_train']
-        X_test = data_temp['X_test']
-        Y_test = data_temp['Y_test']
-        if 'quantizer_type' in data_temp:
-            quantizer_type = data_temp['quantizer_type']
-        else:
-            quantizer_type = 'unknown'
+            dict_in = pkl.load(fid)
+        min_max_scaler_x = dict_in['min_max_scaler_x']
+        min_max_scaler_y = dict_in['min_max_scaler_y']
+        list_quantizers = dict_in['quantizers']
+        X_train = dict_in['X_train']
+        Y_train = dict_in['Y_train']
+        X_test = dict_in['X_test']
+        Y_test = dict_in['Y_test']
 
-        filename_parts = filename.split('_')
-        if filename_parts[1] == 'data':
-            DATASET = eval('{0}'.format(filename_parts[0]))
+        if 'dataset_name' in dict_in:
+            dataset_name = dict_in['dataset_name']
         else:
-            DATASET = eval('{0}_{1}'.format(filename_parts[0], filename_parts[1]))
-        compression_ratio = float(filename_parts[-3])
+            filename_parts = filename.split('_')
+            if filename_parts[1] == 'data':
+                dataset_name = '{0}'.format(filename_parts[0])
+            else:
+                dataset_name = '{0}_{1}'.format(filename_parts[0], filename_parts[1])
+        DATASET = eval(dataset_name)
+
+        if 'compression_ratio' in dict_in:
+            compression_ratio = dict_in['compression_ratio']
+        else:
+            compression_ratio = float(filename_parts[-3])
+
     except:
         print('  ERROR loading from {0}. Skipping.'.format(filename))
         return
@@ -117,116 +158,130 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
         lr = 0.05
         decay = 0.0001
 
-
     for ind_loop in range(N_trials):
+        dict_out = {'dataset_name': dataset_name,
+                    'compression_ratio': compression_ratio,
+                    'trial_num': ind_loop,
+                    'X_test': X_test,
+                    'Y_test': Y_test,
+                    'min_max_scaler_x': min_max_scaler_x,
+                    'min_max_scaler_y': min_max_scaler_y,
+                    'filename_datasets': filename}
 
         config_tf_session(b_cpu)
 
-        if not(FLAG_OVERWRITE) and os.path.isfile(
-                os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
-                             dir_target,
-                             filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(
-                                 quantizer_type, lr, costtype, ind_loop))):
-            print('  File already processed')
-            continue
-
-        # Create machine learning models for each evaluation step
-        list_model_quant = []
-        if DATASET is server_power:
-            generate_model = generate_model_server_power
-        elif DATASET is home_energy:
-            generate_model = generate_model_home_energy
-        elif DATASET is metasense:
-            generate_model = generate_model_metasense
-
-        for _ in list_quantizers:
-            list_model_quant.append(generate_model(N_x, N_y, lr=lr, decay=decay, loss=loss_func))
-        model_reservoir = generate_model(N_x, N_y, lr=lr, decay=decay, loss=loss_func)
-
-        # Perform training from reservoir data first, saving the validation set
-        time_start = time.time()
-        X_temp, Y_temp = reservoir_sampler.get_dataset()
+        # Find the reservoir data, process, and save validation set
+        quantizer_res = next(entry for entry in list_quantizers if list_quantizers['desc'] == 'reservoir')
+        X_temp, Y_temp = quantizer_res['quantizer'].get_dataset()
 
         X_temp = min_max_scaler_x.transform(X_temp)
         Y_temp = min_max_scaler_y.transform(Y_temp)
 
-        X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
+        X_fit_res, X_val, Y_fit_res, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
 
-        history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=64, epochs=N_epochs, verbose=0,
-                                           validation_data=(X_val, Y_val))
-        history_reservoir = history_temp.history
-        history_reservoir['epoch'] = history_temp.epoch
+        list_quantizer_results = []
+        for dict_quantizer in list_quantizers:
+            temp_dict = {'desc': dict_quantizer['desc'], 'model_results': list_models}
 
-        score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
+            for model_config in temp_dict['model_results']:
+                if model_config['desc'] == 'NN_default':
+                    # Required parameters:
+                    #  none
+                    if DATASET is server_power:
+                        model = generate_model_server_power(N_x, N_y)
+                    elif DATASET is home_energy:
+                        model = generate_model_home_energy(N_x, N_y)
+                    elif DATASET is metasense:
+                        model = generate_model_metasense(N_x, N_y)
 
-        Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
+                elif model_config['desc'] == 'NN_custom':
+                    # Required parameters:
+                    #  func_custommodel
+                    #  model_cfg
+                    if 'func_custommodel' in model_config:
+                        model = model_config['func_custommodel'](N_x, N_y, model_cfg=model_config['cfg'])
+                    else:
+                        if DATASET is server_power:
+                            model = generate_model_server_power(N_x, N_y, model_cfg=model_config['cfg'])
+                        elif DATASET is home_energy:
+                            model = generate_model_home_energy(N_x, N_y, model_cfg=model_config['cfg'])
+                        elif DATASET is metasense:
+                            model = generate_model_metasense(N_x, N_y, model_cfg=model_config['cfg'])
 
-        results_reservoir_rmse = np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2, axis=0))
+                elif model_config['desc'] == 'lstsq':
+                    # TODO Implement
+                    continue
 
-        print('{0} Reservoir CR {1} ({2} of {3}) RMSE: {4} Time: {5:0.2f} s'.format(filename, compression_ratio,
-            ind_loop + 1, N_trials, np.array2string(results_reservoir_rmse, precision=2, suppress_small=True),
-            time.time() - time_start))
+                elif model_config['desc'] == 'knn':
+                    # TODO Implement
+                    continue
 
-        dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
-                    'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
-                    'N_datapoints': N_datapoints, 'N_trials': N_trials, 'list_lr': [lr],
-                    'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO}
+                else:
+                    print('ERROR: Unrecognized model {0}'.format(model_config['desc']))
+                    continue
 
-        for dict_quantizer, model_quant in zip(list_quantizers, list_model_quant):
-            quantizer = dict_quantizer['quantizer']
+                if not(dict_quantizer['desc'] == 'reservoir'):
+                    X_temp, Y_temp = dict_quantizer['quantizer'].get_dataset()
+                    sample_weight = dict_quantizer['quantizer'].get_sample_weights()
 
-            time_start = time.time()
-            X_temp, Y_temp = quantizer.get_dataset()
-            w_temp = quantizer.get_sample_weights()
+                    X_temp = min_max_scaler_x.transform(X_temp)
+                    Y_temp = min_max_scaler_y.transform(Y_temp)
 
-            w_temp = w_temp * w_temp.shape[0] / np.sum(w_temp)
+                    X_fit = min_max_scaler_x.transform(X_temp)
+                    Y_fit = min_max_scaler_y.transform(Y_temp)
+                else:
+                    X_fit = X_fit_res
+                    Y_fit = Y_fit_res
+                    sample_weight = None
 
-            X_temp = min_max_scaler_x.transform(X_temp)
-            Y_temp = min_max_scaler_y.transform(Y_temp)
+                time_start = time.time()
+                history_temp = model.fit(X_fit, Y_fit, batch_size=64, epochs=N_epochs, verbose=0,
+                                         validation_data=(X_val, Y_val))
+                time_end = time.time()
+                score_temp = model.evaluate(min_max_scaler_x.transform(X_test),
+                                            min_max_scaler_y.transform(Y_test), verbose=0)
+                Y_predict = min_max_scaler_y.inverse_transform(model.predict(min_max_scaler_x.transform(X_test)))
+                results_rmse = np.sqrt(np.mean((Y_predict - Y_test) ** 2, axis=0))
+                history = history_temp.history
+                history['epoch'] = history_temp.epoch
 
-            # Train using validation set from reservoir sampling. Size is already taken into account in
-            # generate_reduced_datasets.py
-            if b_usefreq:
-                sample_weight = w_temp
-            else:
-                sample_weight = None
+                # Save results in dictionary structure
+                model_config['Y_predict'] = Y_predict
+                model_config['history'] = history
+                model_config['rmse'] = results_rmse
+                model_config['score'] = score_temp
+                model_config['t_train'] = time_end - time_start
 
-            history_temp = model_quant.fit(X_fit, Y_fit, batch_size=64, epochs=N_epochs, verbose=0,
-                                               validation_data=(X_val, Y_val))
-            history_quant = history_temp.history
-            history_quant['epoch'] = history_temp.epoch
+            # Build list of results
+            list_quantizer_results.append(temp_dict)
 
-            score_quant = model_quant.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
+        dict_out['quantizer_results'] = list_quantizer_results
 
-            Y_quant_predict = min_max_scaler_y.inverse_transform(model_quant.predict(min_max_scaler_x.transform(X_test)))
+        print('{0} CR {1} ({2} of {3}) complete.'.format(filename_base, compression_ratio, ind_loop+1, N_trials))
+        for quantizer_result in list_quantizer_results:
+            print('  {0}'.format(quantizer_result['desc']))
+            for model_config in quantizer_result['model_results']:
+                print('    {0}: {1} ({2} s)'.format(model_config['desc', model_config['rmse'], model_config['t_train']]))
 
-            results_quant_rmse = np.sqrt(np.mean((Y_quant_predict - Y_test)**2, axis=0))
-
-            print('{0} {6} CR {1} ({2} of {3}) RMSE: {4} Time: {5:0.2f} s'.format(filename, compression_ratio,
-                ind_loop + 1, N_trials, np.array2string(results_quant_rmse, precision=2, suppress_small=True),
-                time.time() - time_start, quantizer_type))
-
-            dict_out['history_{0}'.format(quantizer_type)] = history_quant
-            dict_out['score_{0}'.format(quantizer_type)] = score_quant
-            dict_out['Y_quant_predict_{0}'.format(quantizer_type)] = Y_quant_predict
-
-            # Save all results for subsequent processing
-            dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
-            if not os.path.exists(dir_target_full):
-                os.mkdir(dir_target_full)
+        # Save all results for subsequent processing
+        dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
+        if not os.path.exists(dir_target_full):
+            os.mkdir(dir_target_full)
 
         with open(os.path.join(dir_target_full,
-                               filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type,
-                               lr, costtype, ind_loop)), 'wb') as fid:
+                               filename_base + 'test{0}_trial{1}_results.pkl'.format(str_testtime, ind_loop)), 'wb') as fid:
             pkl.dump(dict_out, fid)
 
         # Reset Tensorflow session to prevent memory growth
         K.clear_session()
 
+
 def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.001], list_decay=[0.001],
                  TRAIN_VAL_RATIO = 0.8, b_usefreq=True, b_costmae=False):
     """
     Generate results for neural network processing of the quantized dataset
+    """
+    return
     """
     FLAG_OVERWRITE = False
     FLAG_SAVEIMG = True
@@ -396,11 +451,14 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
 
                 # Reset Tensorflow session to prevent memory growth
                 K.clear_session()
+    """
 
 def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.0001],
                  TRAIN_VAL_RATIO = 0.8, b_usefreq=True, b_costmae=False , loss_fnc = 'mean_absolute_error'):
     """
     Generate results for neural network processing of the quantized dataset using custom loss functions
+    """
+    return
     """
     FLAG_OVERWRITE = False
 
@@ -532,13 +590,15 @@ def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=T
 
             # Reset Tensorflow session to prevent memory growth
             K.clear_session()
+    """
 
 def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.0001],
                  TRAIN_VAL_RATIO=0.8, N_depth=2, N_weights=4000, b_usefreq=True):
     """
     Generate results for neural network processing of the quantized dataset
     """
-
+    return
+    """
     FLAG_OVERWRITE = False
 
     # Check that file is valid
@@ -727,13 +787,17 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
 
             # Reset Tensorflow session to prevent memory growth
             K.clear_session()
+    """
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', type=str, help='Target directory of files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of trials to run.', default=[3])
+    parser.add_argument('--cfg', type=str, help='Target for test configuration file.')
     parser.add_argument('--cpu', help='Flag to use CPU version of Tensorflow (GPU by default).', action='store_true')
     parser.add_argument('--Nproc', type=int, help='Number of simultaneous processes to run.', default=1)
+    """
     parser.add_argument('--lr', type=float, nargs='+', help='Learning rates to use.', default=[0.0001])
     parser.add_argument('--decay', type=float, nargs='+', help='Decay rate to use for optimizer.')
     parser.add_argument('--usefreq', help='Flag to use frequency of samples in training', action='store_true')
@@ -742,6 +806,9 @@ if __name__ == '__main__':
     parser.add_argument('--march', type=str, nargs=1, help='Type of ANN (sq, default).', default=['default'])
     parser.add_argument('--mdepth', type=int, nargs='+', help='Number of hidden ANN layesrs', default=[2])
     parser.add_argument('--mram', type=int, nargs='+', help='Device RAM size', default=[4000])
+    """
+
+    config = configparser.ConfigParser()
 
     args = parser.parse_args()
 
@@ -751,55 +818,22 @@ if __name__ == '__main__':
         print('ERROR: No directory provided. Use \'--dir DIRECTORY\' to provide a target directory.')
         sys.exit()
 
+    if args.cfg is not None:
+        temp_cfg = config.read(args.cfg)
+        try:
+            list_models = [json.loads(temp_cfg['list_models'][entry].replace('\'', '"')) for entry in temp_cfg['list_models']]
+        except:
+            print('ERROR: Config file parsed incorrectly.')
+            sys.exit()
+    else:
+        list_models = [{'desc': 'NN_default'}]
+
     N_trials = args.N[0]
 
     dir_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
-    if args.test == 'nn':
-        if args.loss == 'mean_squared_error':
-            costtype = 0
-        elif args.loss == 'mean_absolute_error':
-            costtype = 1
-        elif args.loss == 'sigmoid':
-            costtype = 2
-        elif args.loss == 'step':
-            costtype = 3
-        else:
-            print('ERROR: Unknown loss type')
-            sys.exit()
-
-        if args.march == 'sq':
-            model_depth = args.mdepth[0]
-            model_ram = args.mram[0]
-            p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                                  b_cpu=args.cpu, b_usefreq=args.usefreq, costtype=costtype, TRAIN_VAL_RATIO=0.8,
-                                  b_custommodel=True, model_cfg={'N_layer':model_depth, 'N_weights':model_ram})
-        else:
-            p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                                  b_cpu=args.cpu, b_usefreq=args.usefreq, costtype=costtype, TRAIN_VAL_RATIO=0.8)
-
-    elif args.test == 'convergence':
-        p_run_tests = partial(run_convergence_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                                 b_cpu=args.cpu, b_usefreq=args.usefreq,
-                                 list_lr=args.lr, list_decay=args.decay, TRAIN_VAL_RATIO=0.8)
-
-    elif args.test == 'loss':
-        loss_fnc = args.loss
-        p_run_tests = partial(run_nn_tests_with_lossF, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                             b_cpu=args.cpu, b_usefreq=args.usefreq,
-                             list_lr=args.lr, TRAIN_VAL_RATIO=0.8, loss_fnc=loss_fnc)
-
-    elif args.test == 'nnarch':
-        model_depth = args.mdepth[0]
-        model_ram = args.mram[0]
-        print('Yes Square ! depth = ', model_depth, 'RAM = ', model_ram)
-        p_run_tests = partial(run_sq_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                             b_cpu=args.cpu, b_usefreq=args.usefreq,
-                             list_lr=args.lr, N_depth=model_depth, N_weights=model_ram, TRAIN_VAL_RATIO=0.8)
-
-    else:
-        print('Invalid test type.')
-        sys.exit()
+    p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
+                          list_models=list_models, TRAIN_VAL_RATIO=0.8)
 
     DEBUG = False
     if DEBUG == True:

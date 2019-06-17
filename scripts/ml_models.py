@@ -17,6 +17,7 @@ def custom_loss_function_sig (y_true, y_pred, m=1 , b=0 ) :
     alpha = K.exp(m*y_true +b) / (1 + K.exp(m*y_true + b))
     return alpha*K.mean(K.square(y_pred - y_true))
 
+
 def custom_loss_function_step (y_true, y_pred , b=0 ) :
     """
     Custom loss function for Keras using a step function at 'b' based on y_true
@@ -24,83 +25,101 @@ def custom_loss_function_step (y_true, y_pred , b=0 ) :
     alpha = 0.5 * (tf.sign(y_true - b) + 1)
     return alpha*K.mean(K.square(y_pred - y_true))
 
-def generate_model_server_power(N_x, N_y, std_noise=0.01, lr=0.01, decay=1e-4, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
+
+def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'optimizer':'sgd',
+                                                  'loss':'mean_squared_error', 'b_custommodel':False,
+                                                  'N_layer':2, 'N_weights':10000}):
     """
     Create neural network model for the server power dataset
     """
-    layer_input = Input(shape=(N_x, )) # Input features
-    layer1 = GaussianNoise(stddev=std_noise)(layer_input)
-    layer1 = Dense(200, activation='relu')(layer1)
-    layer1 = Dropout(0.5)(layer1)
-    layer1 = Dense(200, activation='relu')(layer1)
-    layer1 = Dropout(0.5)(layer1)
-    layer2 = Dense(200, activation='relu')(layer1)
-    layer2 = Dropout(0.5)(layer2)
-    layer_out = Dense(N_y)(layer2)
-    model_nn = Model(inputs=layer_input, outputs=layer_out)
-    if optimizer == 'sgd':
-        optimizer = SGD(lr=lr, decay=decay)
-    elif optimizer == 'adam':
-        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    if model_cfg['b_custommodel'] == False:
+        layer_input = Input(shape=(N_x,))  # Input features
+        layer1 = Dense(200, activation='relu')(layer_input)
+        layer1 = Dropout(0.5)(layer1)
+        layer1 = Dense(200, activation='relu')(layer1)
+        layer1 = Dropout(0.5)(layer1)
+        layer2 = Dense(200, activation='relu')(layer1)
+        layer2 = Dropout(0.5)(layer2)
+        layer_out = Dense(N_y)(layer2)
+        model_nn = Model(inputs=layer_input, outputs=layer_out)
 
-    if loss == 'sigmoid' :
+    else:
+        model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'],
+                                                      N_weights=model_cfg['N_weights'])
+
+    if model_cfg['optimizer'] == 'sgd':
+        optimizer = SGD(lr=model_cfg['lr'], decay=model_cfg['decay'])
+    elif model_cfg['optimizer'] == 'adam':
+        optimizer = Adam(lr=model_cfg['lr'], beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
+    if model_cfg['loss'] == 'sigmoid' :
         loss_sig_b = 32.624
         loss_sig_m = 0.125
         loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
-    elif loss == 'step':
+    elif model_cfg['loss'] == 'step':
         loss_step_b = 1
-        loss = partial(custom_loss_function_step,  b=loss_step_b)
-
-    if b_costmae:
-        model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+        loss = partial(custom_loss_function_step, b=loss_step_b)
     else:
-        model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+        loss = model_cfg['loss']
+
+    model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+
     return model_nn
 
-def generate_model_home_energy(N_x, N_y, std_noise=0.01, lr=0.01, decay=1e-4, b_costmae=False, optimizer='sgd', loss='mean_squared_error'):
+
+def generate_model_home_energy(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'optimizer':'sgd',
+                                                  'loss':'mean_squared_error', 'b_custommodel':False,
+                                                  'N_layer':2, 'N_weights':10000}):
     """
     Create neural network model for the home energy dataset
     """
-    layer_input = Input(shape=(N_x,))  # Input features
-    layer1 = GaussianNoise(stddev=std_noise)(layer_input)
-    layer1 = Dense(512, activation='relu')(layer_input)
-    layer1 = Dropout(0)(layer1)
-    layer1 = Dense(128, activation='relu')(layer1)
-    layer1 = Dropout(0.5)(layer1)
-    # layer1 = Dense(128, activation='relu')(layer1)
-    # layer1 = Dropout(0.5)(layer1)
-    layer2 = Dense(128, activation='relu')(layer1)
-    layer2 = Dropout(0.5)(layer2)
-    layer_out = Dense(N_y)(layer2)
-    model_nn = Model(inputs=layer_input, outputs=layer_out)
-    if optimizer == 'sgd':
-        optimizer = SGD(lr=lr, decay=decay)
-    elif optimizer == 'adam':
-        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    if model_cfg['b_custommodel'] == False:
+        layer_input = Input(shape=(N_x,))  # Input features
+        layer1 = Dense(512, activation='relu')(layer_input)
+        layer1 = Dropout(0)(layer1)
+        layer1 = Dense(128, activation='relu')(layer1)
+        layer1 = Dropout(0.5)(layer1)
+        # layer1 = Dense(128, activation='relu')(layer1)
+        # layer1 = Dropout(0.5)(layer1)
+        layer2 = Dense(128, activation='relu')(layer1)
+        layer2 = Dropout(0.5)(layer2)
+        layer_out = Dense(N_y)(layer2)
+        model_nn = Model(inputs=layer_input, outputs=layer_out)
 
-    if loss == 'sigmoid' :
+    else:
+        model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'],
+                                                      N_weights=model_cfg['N_weights'])
+
+    if model_cfg['optimizer'] == 'sgd':
+        optimizer = SGD(lr=model_cfg['lr'], decay=model_cfg['decay'])
+    elif model_cfg['optimizer'] == 'adam':
+        optimizer = Adam(lr=model_cfg['lr'], beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+
+    if model_cfg['loss'] == 'sigmoid' :
         loss_sig_b = 32.624
         loss_sig_m = 0.125
         loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
-    elif loss == 'step':
+    elif model_cfg['loss'] == 'step':
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
-
-    if b_costmae:
-        model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
     else:
-        model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+        loss = model_cfg['loss']
+
+    model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
+
     return model_nn
 
-def generate_model_metasense(N_x, N_y, lr=0.01, decay=1e-4, optimizer='sgd', loss='mean_squared_error',
-                             b_custommodel=False, model_cfg={'N_layer':2, 'N_weights':10000}):
+
+def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'optimizer':'sgd',
+                                                  'loss':'mean_squared_error', 'b_custommodel':False,
+                                                  'N_layer':2, 'N_weights':10000}):
     """
     Create neural network model.
 
     If b_custommodel is set to True, then a square model that adheres to size ('N_weights') and depth ('N_layer')
     requirements will be generated.
     """
-    if b_custommodel == False:
+    if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(100, activation='relu')(layer_input)
         layer1 = Dropout(0.5)(layer1)
@@ -110,20 +129,23 @@ def generate_model_metasense(N_x, N_y, lr=0.01, decay=1e-4, optimizer='sgd', los
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
     else:
-        model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'], N_weights=model_cfg['N_weights'])
+        model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'],
+                                                      N_weights=model_cfg['N_weights'])
 
-    if optimizer == 'sgd':
-        optimizer = SGD(lr=lr, decay=decay)
-    elif optimizer == 'adam':
-        optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    if model_cfg['optimizer'] == 'sgd':
+        optimizer = SGD(lr=model_cfg['lr'], decay=model_cfg['decay'])
+    elif model_cfg['optimizer'] == 'adam':
+        optimizer = Adam(lr=model_cfg['lr'], beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
-    if loss == 'sigmoid' :
+    if model_cfg['loss'] == 'sigmoid' :
         loss_sig_b = 32.624
         loss_sig_m = 0.125
         loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
-    elif loss == 'step':
+    elif model_cfg['loss'] == 'step':
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
+    else:
+        loss = model_cfg['loss']
 
     model_nn.compile(optimizer=optimizer, loss=loss, metrics=['mse', 'mae'])
 
@@ -168,9 +190,9 @@ def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
     """
     a = N_layer
     b = N_x + N_y + N_layer + 1
-    c = - N_y + N_weights
+    c = N_y - N_weights
 
-    N_width = -b + np.sqrt(b**2 - 4*a*c)
+    N_width = (-b + np.sqrt(b**2 - 4*a*c))//(2*a)
 
     total_weights_test = (N_x+1)*N_width + (N_layer)*(N_width+1)*(N_width) + (N_width+1)*N_y
 
