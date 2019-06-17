@@ -133,7 +133,8 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
             compression_ratio = float(filename_parts[-3])
 
     except:
-        print('  ERROR loading from {0}. Skipping.'.format(filename))
+        print('ERROR loading from {0}. Skipping.'.format(filename))
+        print(sys.exc_info()[0])
         return
 
     # Process data
@@ -160,8 +161,6 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                     'min_max_scaler_y': min_max_scaler_y,
                     'filename_datasets': filename}
 
-        config_tf_session(b_cpu)
-
         # Find the reservoir data, process, and save validation set
         quantizer_res = next(entry for entry in list_quantizers if entry['desc'] == 'reservoir')
         X_temp, Y_temp = quantizer_res['quantizer'].get_dataset()
@@ -173,9 +172,11 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
         list_quantizer_results = []
         for dict_quantizer in list_quantizers:
-            temp_dict = {'desc': dict_quantizer['desc'], 'model_results': list_models}
+            temp_dict = {'desc': dict_quantizer['desc'], 'model_results': [entry.copy() for entry in list_models]}
 
             for model_config in temp_dict['model_results']:
+                config_tf_session(b_cpu)
+
                 if model_config['desc'] == 'NN_default':
                     # Required parameters:
                     #  none
@@ -233,7 +234,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                 score_temp = model.evaluate(min_max_scaler_x.transform(X_test),
                                             min_max_scaler_y.transform(Y_test), verbose=0)
                 Y_predict = min_max_scaler_y.inverse_transform(model.predict(min_max_scaler_x.transform(X_test)))
-                results_rmse = np.sqrt(np.mean((Y_predict - Y_test) ** 2, axis=0))
+                results_rmse = np.sqrt(np.mean((Y_predict - Y_test) ** 2, axis=0))[0]
                 history = history_temp.history
                 history['epoch'] = history_temp.epoch
 
@@ -244,6 +245,9 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                 model_config['score'] = score_temp
                 model_config['t_train'] = time_end - time_start
 
+                # Reset Tensorflow session to prevent memory growth
+                K.clear_session()
+
             # Build list of results
             list_quantizer_results.append(temp_dict)
 
@@ -253,7 +257,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
         for quantizer_result in list_quantizer_results:
             print('  {0}'.format(quantizer_result['desc']))
             for model_config in quantizer_result['model_results']:
-                print('    {0}: {1} ({2} s)'.format(model_config['desc'], model_config['rmse'], model_config['t_train']))
+                print('    {0}: {1:0.2f} ({2:0.2f} s)'.format(model_config['desc'], model_config['rmse'], model_config['t_train']))
 
         # Save all results for subsequent processing
         dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
@@ -264,8 +268,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                                filename_base + 'test{0}_trial{1}_results.pkl'.format(str_testtime, ind_loop)), 'wb') as fid:
             pkl.dump(dict_out, fid)
 
-        # Reset Tensorflow session to prevent memory growth
-        K.clear_session()
+
 
 
 def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, list_lr=[0.001], list_decay=[0.001],
