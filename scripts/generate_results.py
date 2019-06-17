@@ -217,9 +217,6 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                     X_temp, Y_temp = dict_quantizer['quantizer'].get_dataset()
                     sample_weight = dict_quantizer['quantizer'].get_sample_weights()
 
-                    X_temp = min_max_scaler_x.transform(X_temp)
-                    Y_temp = min_max_scaler_y.transform(Y_temp)
-
                     X_fit = min_max_scaler_x.transform(X_temp)
                     Y_fit = min_max_scaler_y.transform(Y_temp)
                 else:
