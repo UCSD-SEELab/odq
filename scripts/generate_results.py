@@ -142,15 +142,6 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
     N_x = X_train.shape[1]
     N_y = Y_train.shape[1]
 
-    if DATASET is home_energy:
-        N_epochs = int(max(500, 50*compression_ratio))
-    elif DATASET is metasense:
-        N_epochs = int(max(200, 15*compression_ratio))
-    elif DATASET is server_power:
-        N_epochs = int(max(200, 30*compression_ratio))
-    else:
-        N_epochs = int(max(200, 30*compression_ratio))
-
     for ind_loop in range(N_trials):
         dict_out = {'dataset_name': dataset_name,
                     'compression_ratio': compression_ratio,
@@ -176,6 +167,19 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
             for model_config in temp_dict['model_results']:
                 config_tf_session(b_cpu)
+
+                # Set correct number of epochs
+                if 'epochs' in model_config:
+                    N_epochs = model_config['epochs']
+                else:
+                    if DATASET is home_energy:
+                        N_epochs = int(max(500, 50 * compression_ratio))
+                    elif DATASET is metasense:
+                        N_epochs = int(max(200, 15 * compression_ratio))
+                    elif DATASET is server_power:
+                        N_epochs = int(max(200, 30 * compression_ratio))
+                    else:
+                        N_epochs = int(max(200, 30 * compression_ratio))
 
                 if model_config['desc'] == 'NN_default':
                     # Required parameters:
