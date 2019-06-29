@@ -207,10 +207,10 @@ def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
 
     for i in range(0, N_layer):
         if (i == 0):
-            layer = Dense(N_width, activation='relu')(layer_input)
+            layer = Dense(N_width, activation='relu', kernel_constraint=maxnorm(3))(layer_input)
             layer = Dropout(0.5)(layer)
         else:
-            layer = Dense(N_width, activation='relu')(layer)
+            layer = Dense(N_width, activation='relu', kernel_constraint=maxnorm(3))(layer)
             layer = Dropout(0.5)(layer)
 
     layer_out = Dense(N_y)(layer)
