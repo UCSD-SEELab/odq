@@ -91,8 +91,9 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
             filename_datasets
             quantizer_results (list)
                 desc
-                list_models (list)
-                    desc
+                model_results (list)
+                    desc (from list_models)
+                    cfg (from list_models)
                     history
                     score
                     Y_predict
@@ -206,11 +207,15 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                             model = generate_model_metasense(N_x, N_y, model_cfg=model_config['cfg'])
 
                 elif model_config['desc'] == 'lstsq':
-                    # TODO Implement
+                    # Required parameters:
+                    #  none
+
                     continue
 
                 elif model_config['desc'] == 'knn':
-                    # TODO Implement
+                    # Required parameters:
+                    #  k (number of neighboring points to use in prediction)
+
                     continue
 
                 else:
@@ -240,8 +245,18 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                 history['epoch'] = history_temp.epoch
 
                 # Save results in dictionary structure
-                model_config['Y_predict'] = Y_predict
+                # (Note: history values were taking up substantial space for very large epoch numbers. Reduced the
+                #  number of saved samples using ind_subsample.)
+                ind_subsample = list(range(1, 100, 2)) + list(range(100, 500, 5)) + list(range(500, 1000, 10)) + \
+                                list(range(1000, 5000, 25))
+                if ind_subsample[-1] < max(history['epoch']):
+                    ind_subsample += list(range(5000, max(history['epoch']) + 1, 50))
+                else:
+                    ind_subsample = [ind for ind in ind_subsample if ind <= max(history['epoch'])]
+                for key in history:
+                    history[key] = [history[key][ind] for ind in ind_subsample]
                 model_config['history'] = history
+                model_config['Y_predict'] = Y_predict
                 model_config['rmse'] = results_rmse
                 model_config['score'] = score_temp
                 model_config['t_train'] = time_end - time_start
