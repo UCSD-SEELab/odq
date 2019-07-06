@@ -185,7 +185,7 @@ def calc_weights_unit_var(X, Y):
     std_y = np.std(Y, axis=0)
     w_unit_var = np.append(1/std_x, 1/std_y)
 
-    w_imp = np.ones((X.shape[-1], Y.shape[-1]))
+    w_imp = w_unit_var
     w_imp = w_imp / np.sum(w_imp)
 
     return w_unit_var, w_imp
