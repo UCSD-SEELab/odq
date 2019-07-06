@@ -21,6 +21,7 @@ from odq.odq import OnlineDatasetQuantizer, calc_weights_max_cov, calc_weights_m
 from odq.omes import OnlineMaxEntropySelector
 from odq.reservoir import ReservoirSampler
 from odq.data import home_energy, server_power, metasense
+from odq.ks import KennardStone
 
 
 def train_test_split(X, Y, pct_train=0.8, weights=None):
@@ -118,7 +119,7 @@ def _run_quantization(ind_loop):
     N_y = Y_train.shape[1]
 
     # Print point for index decided based on mod(ind, ind_print) == 0
-    N_print_segs = 100
+    N_print_segs = 10
 
     ind_print = int(N_datapoints // N_print_segs) * np.arange(1, N_print_segs + 1).astype(int)
 
@@ -135,6 +136,11 @@ def _run_quantization(ind_loop):
         dict_out['compression_ratio'] = compression_ratio
 
         list_quantizers = []
+
+        # -------------------------------------------------------------------------------------------------------------
+        # Process all online quantizers
+        # -------------------------------------------------------------------------------------------------------------
+        N_saved_res = int(N_datapoints / compression_ratio)
         for method in list_methods:
             if method.startswith('odq'):
                 N_saved_quantizer = int(
@@ -174,7 +180,7 @@ def _run_quantization(ind_loop):
                     continue
                 w_x, w_y = w_list[:N_x], w_list[N_x:]
 
-            elif method == 'omes':
+            elif method.startswith('omes'):
                 k = method.split(sep='_')[-1]
                 # If specific neighborhood size is declared, use. Otherwise, default to 5 neighbors
                 if not(k == method):
@@ -185,13 +191,15 @@ def _run_quantization(ind_loop):
                 N_saved_quantizer = int(
                     N_datapoints / compression_ratio * (N_x + N_y) / (2 * N_x + N_y + k + 1))
 
+            elif method == 'ks':
+                continue
+
             else:
                 print('ERROR: method \'{0}\' not supported'.format(method))
                 continue
 
             dict_out['quantizer_types'].append(method)
 
-            N_saved_res = int(N_datapoints / compression_ratio)
             print('Trial {5}: Compression Ratio {0}: {1} -> {4}:{2} res:{3}'.format(compression_ratio, N_datapoints,
                                                                              N_saved_quantizer, N_saved_res,
                                                                              method, ind_loop))
@@ -209,7 +217,7 @@ def _run_quantization(ind_loop):
         list_quantizers.append({'desc': 'reservoir', 'quantizer': ReservoirSampler(num_datapoints_max=N_saved_res,
                                                                                    num_input_features=N_x,
                                                                                    num_target_features=N_y)})
-
+        print('Trial {0}: Online methods starting'.format(ind))
         for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
             for quantizer in list_quantizers:
                 time_start = time.time()
@@ -220,9 +228,23 @@ def _run_quantization(ind_loop):
             if ind in ind_print:
                 print('Trial {2}: {0} / {1}'.format(ind, N_datapoints, ind_loop))
 
+        print('Trial {0}: Online methods finished')
+        # -------------------------------------------------------------------------------------------------------------
+        # Process all offline quantizers
+        # -------------------------------------------------------------------------------------------------------------
+        print('Trial {0}: Offline methods starting'.format(ind))
+        if 'ks' in list_methods:
+            list_quantizers.append({'desc': 'ks', 'quantizer': KennardStone(num_datapoints_max=N_saved_res,
+                                                                            num_input_features=N_x,
+                                                                            num_target_features=N_y)})
+            print('Trial {0}: Kennard-Stone subset selection starting'.format(ind))
+            list_quantizers[-1]['quantizer'].select_subset(np.concatenate((X_train, Y_train), axis=1))
+
+        print('Trial {0}: Offline methods finished'.format(ind))
+
         dict_out['quantizers'] = list_quantizers
 
-        print('  Saving reduced datasets')
+        print('Saving reduced datasets')
         directory_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized',
                                              directory_target)
         if not os.path.exists(directory_target_full):
@@ -239,7 +261,7 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, help='Target directory to save generated files.')
     parser.add_argument('--N', type=int, nargs=1, help='Number of iterations to generate.', default=[5])
     parser.add_argument('--dataset', type=str, help='Dataset to use (home_energy, server_power, metasense)')
-    parser.add_argument('--method', type=str, nargs='+', help='Quantizer to use (omes, odq, omes_#, odq_#)', default=['omes'])
+    parser.add_argument('--method', type=str, nargs='+', help='Quantizer to use (omes, odq, omes_#, odq_#, ks)', default=['omes'])
     parser.add_argument('--brd', type=int, nargs=1, help='Board number for MetaSense tests', default=[11])
     parser.add_argument('--Nproc', type=int, help='Number of simultaneous processes to run.', default=2)
     # parser.add_argument('--w_type', type=int, nargs='+',
@@ -329,7 +351,7 @@ if __name__ == '__main__':
     # Create and check list_methods
     list_methods = []
     for method in args.method:
-        if method.startswith('omes') or method.startswith('odq'):
+        if method.startswith('omes') or method.startswith('odq') or method.startswith('ks'):
             list_methods.append(method)
 
     if len(list_methods) == 0:
