@@ -217,7 +217,7 @@ def _run_quantization(ind_loop):
         list_quantizers.append({'desc': 'reservoir', 'quantizer': ReservoirSampler(num_datapoints_max=N_saved_res,
                                                                                    num_input_features=N_x,
                                                                                    num_target_features=N_y)})
-        print('Trial {0}: Online methods starting'.format(ind))
+        print('Trial {0}: Online methods starting'.format(ind_loop))
         for ind, X_new, Y_new in zip(range(N_datapoints), X_train, Y_train):
             for quantizer in list_quantizers:
                 time_start = time.time()
@@ -232,7 +232,7 @@ def _run_quantization(ind_loop):
         # -------------------------------------------------------------------------------------------------------------
         # Process all offline quantizers
         # -------------------------------------------------------------------------------------------------------------
-        print('Trial {0}: Offline methods starting'.format(ind))
+        print('Trial {0}: Offline methods starting'.format(ind_loop))
         if 'ks' in list_methods:
             list_quantizers.append({'desc': 'ks', 'quantizer': KennardStone(num_datapoints_max=N_saved_res,
                                                                             num_input_features=N_x,
