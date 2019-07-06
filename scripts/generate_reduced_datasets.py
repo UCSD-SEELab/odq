@@ -228,7 +228,7 @@ def _run_quantization(ind_loop):
             if ind in ind_print:
                 print('Trial {2}: {0} / {1}'.format(ind, N_datapoints, ind_loop))
 
-        print('Trial {0}: Online methods finished')
+        print('Trial {0}: Online methods finished'.format(ind_loop))
         # -------------------------------------------------------------------------------------------------------------
         # Process all offline quantizers
         # -------------------------------------------------------------------------------------------------------------
@@ -240,7 +240,7 @@ def _run_quantization(ind_loop):
             print('Trial {0}: Kennard-Stone subset selection starting'.format(ind))
             list_quantizers[-1]['quantizer'].select_subset(np.concatenate((X_train, Y_train), axis=1))
 
-        print('Trial {0}: Offline methods finished'.format(ind))
+        print('Trial {0}: Offline methods finished'.format(ind_loop))
 
         dict_out['quantizers'] = list_quantizers
 
