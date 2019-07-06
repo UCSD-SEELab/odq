@@ -293,7 +293,7 @@ if __name__ == '__main__':
     FLAG_PLOT = False
     PLOT_DELAY = 0.0001
     ind_assess = [-1] # 5000 * np.arange(1, 35).astype(int)
-    list_compression_ratio = np.append([], 2**(2 + 2*np.arange(5)))[::-1]#2**(1 + np.arange(9))[::-1] # test = np.append([4, 16], 2**(6 + np.arange(5)))[::-1]
+    list_compression_ratio = np.append([4, 16], 2 ** (6 + 1 * np.arange(5)))[::-1]
     N_iterations = args.N[0]
     metasense_brd = args.brd[0]
     TRAIN_TEST_RATIO = 0.8 # Server power has test/train datasets pre-split due to tasks
