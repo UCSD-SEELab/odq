@@ -108,3 +108,5 @@ results/img
 results/quantized
 results/raw
 results/*.zip
+results/*.png
+results/*.pkl
