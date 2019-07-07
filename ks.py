@@ -140,7 +140,7 @@ class KennardStone(object):
         Returns X and Y values from current dataset
         """
         return self.dataset[:self.ind_curr, :self.num_x], \
-               self.dataset[:self.ind_curr, self.num_x:(self.ind_features + 1)]
+               self.dataset[:self.ind_curr, self.num_x:]
 
     def plot(self, title_in='KS', ind_dims=[0, 1], fig_num=1, b_save_fig=False, title_save='KS_plot'):
         """
@@ -171,7 +171,7 @@ class KennardStone(object):
         if not(hasattr(self, 'total_processed')):
             self.total_processed = 0
 
-        n_fig = ((self.ind_features + 1) // 12) + 1
+        n_fig = ((self.num_cols + 1) // 12) + 1
 
         ind_feature = 0
 
@@ -192,9 +192,9 @@ class KennardStone(object):
                     subplot_el.hist(self.dataset[:, ind_feature], bins=20, density=True)
                     subplot_el.set_xlabel('Feature {0}'.format(ind_feature))
                     ind_feature += 1
-                    if ind_feature >= self.ind_features:
+                    if ind_feature >= self.num_cols:
                         break
-                if ind_feature >= self.ind_features:
+                if ind_feature >= self.num_cols:
                     break
 
             plt.tight_layout()
@@ -206,7 +206,7 @@ class KennardStone(object):
                 plt.draw()
                 plt.pause(PLOT_DELAY / 2)
 
-            if ind_feature >= self.ind_features:
+            if ind_feature >= self.num_cols:
                 break
 
 
