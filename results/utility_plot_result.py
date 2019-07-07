@@ -33,6 +33,19 @@ if __name__ == '__main__':
                    'odq_11':    colormap(1),
                   }
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', type=str, help='Target directory of files.')
+    parser.add_argument('--plot', type=str, help='plot type: Data_Size | Training | Range_Acc')
+
+    args = parser.parse_args()
+
+    if args.dir is not None:
+        directory_target = args.dir
+
+    if args.plot is not None:
+        plot_type = args.plot
+
+
     """
     Structure of input dictionaries from files:
 
