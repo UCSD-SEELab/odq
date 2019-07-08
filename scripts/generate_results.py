@@ -176,11 +176,11 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                     if DATASET is home_energy:
                         N_epochs = int(max(500, 50 * compression_ratio))
                     elif DATASET is metasense:
-                        N_epochs = int(max(200, 15 * compression_ratio))
+                        N_epochs = int(max(500, 50 * compression_ratio))
                     elif DATASET is server_power:
-                        N_epochs = int(max(200, 30 * compression_ratio))
+                        N_epochs = int(max(500, 50 * compression_ratio))
                     else:
-                        N_epochs = int(max(200, 30 * compression_ratio))
+                        N_epochs = int(max(500, 50 * compression_ratio))
 
                 if model_config['desc'] == 'NN_default':
                     # Required parameters:
@@ -247,10 +247,10 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                 # Save results in dictionary structure
                 # (Note: history values were taking up substantial space for very large epoch numbers. Reduced the
                 #  number of saved samples using ind_subsample.)
-                ind_subsample = list(range(1, 100, 2)) + list(range(100, 500, 5)) + list(range(500, 1000, 10)) + \
-                                list(range(1000, 5000, 25))
+                ind_subsample = list(range(1, 500, 2)) + list(range(500, 1000, 5)) + \
+                                list(range(1000, 5000, 10))
                 if ind_subsample[-1] < max(history['epoch']):
-                    ind_subsample += list(range(5000, max(history['epoch']) + 1, 50))
+                    ind_subsample += list(range(5000, max(history['epoch']) + 1, 25))
                 else:
                     ind_subsample = [ind for ind in ind_subsample if ind <= max(history['epoch'])]
                 for key in history:
