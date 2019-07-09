@@ -273,7 +273,7 @@ if __name__ == '__main__':
 
                 # Generate plot for unique model-dataset pair
                 plt.figure()
-                plt.rc('font', family='Liberation Serif', size=14)
+                plt.rc('font', family='Arial', size=14)
                 plt.xscale('log')
                 # plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
                 for datum in data:
@@ -326,7 +326,7 @@ if __name__ == '__main__':
                 # Calculate error over a given range of Y and generate bar plot comparing all available quantizers
                 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(5, 6))
                 plt.rcParams['axes.grid'] = True
-                plt.rc('font', family='Liberation Serif', size=12)
+                plt.rc('font', family='Arial', size=12)
                 fig.suptitle('{0} CR{1} ({2} {3})'.format(dataset_target, Y_result['compression_ratio'],
                                                           Y_result['desc_model'].split('_')[0],
                                                           Y_result['cfg_str_short']))
