@@ -31,8 +31,8 @@ def get_next_color_ind():
     return colormap_ind
 
 if __name__ == '__main__':
-    directory_target = '<insert results/raw folder name>'
-    plot_type = '<insert plot type>'  # 'Data_Size' / 'Training' / 'Range_Acc'
+    directory_target = 'metasense_201907017'
+    plot_type = 'Training'  # 'Data_Size' / 'Training' / 'Range_Acc'
     list_quantizers_plot = ['reservoir', 'odq_3', 'omes', 'ks']
 
     err_max = None
@@ -467,6 +467,10 @@ if __name__ == '__main__':
                         cfg_str_short += '_decay{0}'.format(model_result['cfg']['decay'])
                     else:
                         cfg_str_short += '_decaydefault'
+                    if 'dropout' in model_result['cfg']:
+                        cfg_str_short += '\n_dropout{0}'.format(model_result['cfg']['dropout'])
+                    else:
+                        cfg_str_short += '_dropoutdefault'
 
                     plt.figure()
                     plt.rc('font', family='Liberation Serif', size=14)
