@@ -159,10 +159,10 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
         quantizer_res = next(entry for entry in list_quantizers if entry['desc'] == 'reservoir')
        # X_temp, Y_temp = quantizer_res['quantizer'].get_dataset()
 
-       # X_temp = min_max_scaler_x.transform(X_temp)
-        #Y_temp = min_max_scaler_y.transform(Y_temp)
+        X_temp = min_max_scaler_x.transform(X_train)
+        Y_temp = min_max_scaler_y.transform(Y_train)
 
-      #  X_fit_res, X_val, Y_fit_res, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
+        X_fit_res, X_val, Y_fit_res, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
 
         list_quantizer_results = []
         for dict_quantizer in list_quantizers:
@@ -224,20 +224,21 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                     print('ERROR: Unrecognized model {0}'.format(model_config['desc']))
                     continue
 
-                '''if not(dict_quantizer['desc'] == 'reservoir'):
+                if not(dict_quantizer['desc'] == 'reservoir'):
+                    print ("")
                    # X_temp, Y_temp = dict_quantizer['quantizer'].get_dataset()
                   #  sample_weight = dict_quantizer['quantizer'].get_sample_weights()
 
-                    X_fit = min_max_scaler_x.transform(X_temp)
-                    Y_fit = min_max_scaler_y.transform(Y_temp)
+                   # X_fit = min_max_scaler_x.transform(X_temp)
+                    #Y_fit = min_max_scaler_y.transform(Y_temp)
                 else:
-                    X_fit = X_fit_res
-                    Y_fit = Y_fit_res
-                    sample_weight = None'''
+                   # X_fit = X_fit_res
+                    #Y_fit = Y_fit_res
+                    sample_weight = None
 
                 time_start = time.time()
-                history_temp = model.fit(X_train, Y_train, batch_size=64, epochs=N_epochs, verbose=0,
-                                         validation_data=(X_test, Y_test))
+                history_temp = model.fit(X_fit_res, Y_fit_res, batch_size=64, epochs=N_epochs, verbose=0,
+                                         validation_data=(X_val, Y_val))
                 time_end = time.time()
                 score_temp = model.evaluate(min_max_scaler_x.transform(X_test),
                                             min_max_scaler_y.transform(Y_test), verbose=0)
