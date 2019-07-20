@@ -3,13 +3,14 @@ import pickle as pkl
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import compress
+import math
 import matplotlib.font_manager
 import argparse
 
 
 if __name__ == '__main__':
-    directory_target = 'ann_test_home_energy_201905031'
-    list_filename_base = ['home_energy']
+    directory_target = 'metasense_testANN'
+    list_filename_base = ['metasense']
     plot_type = 'Data_Size'  # 'Data_Size' / 'Training'
     FLAG_SAVE_COMPUTATION = False
     filename_save = 'results_metasense12_imbalanced_20190407.pkl'
@@ -51,6 +52,7 @@ if __name__ == '__main__':
             try:
                 with open(os.path.join(directory, file), 'rb') as fid:
                     data_temp = pkl.load(fid)
+                    #print(data_temp.keys())
                 print('  SUCCESS')
             except:
                 print('  ERROR. Skipping.')
@@ -60,8 +62,45 @@ if __name__ == '__main__':
             # list_filepieces = file.split(sep=temp_filename_base)[-1].split(sep='_')
             list_filepieces = file.split(sep='_')
             compression_ratio = float(list_filepieces[-11])
-            print(compression_ratio)
+            print('compression_ratio : ' , compression_ratio)
+            number_of_layers = int(list_filepieces[-5][1:])
+            print('number_of_layers : ', number_of_layers)
+            device_size = int(list_filepieces[-4][3:])
+            print('Device_size : ', device_size)
             filetype = list_filepieces[-1]
+
+            #######################
+            # Calculate ratio (Number of Layer/ Number_of_Neurons)
+            if list_filename_base[0] == 'metasense':
+                N_x = 6
+                N_y = 2
+
+            a = number_of_layers - 1
+            b = N_x + N_y + 2 + (number_of_layers - 1)
+            c = - device_size + (number_of_layers - 1)
+            discriminant = b * b - 4 * a * c
+            if discriminant > 0:
+                rt = math.sqrt(discriminant)
+                root1 = (-b + rt) / (2 * a)
+                root2 = (-b - rt) / (2 * a)
+                # print("two real solutions: {0:0.4f} and {1:0.4f}".format(root1, root2))
+            elif discriminant == 0:
+                root1 = -b / (2 * a)
+                # print("one real solution: {0:0.4f}".format(root))
+            else:
+                root1 = -b / (2 * a)
+                imag = abs(math.sqrt(-discriminant) / (2 * a))
+                # print("two complex solutions: {0:0.4f} + {1:0.4f}i and {0:0.4f} - {1:0.4f}i".format(real, imag))
+            number_of_neurons = int(root1)  # Number of neurons
+            print('number_of_neurons : ', number_of_neurons)
+
+
+            #ratio = number_of_layers / number_of_neurons
+            ratio = number_of_layers
+            print('ratio : ', ratio)
+
+            #######################
+
 
             if N_datapoints < 0 and any([dict_key == 'N_datapoints' for dict_key in data_temp.keys()]):
                 N_datapoints = data_temp['N_datapoints']
@@ -74,16 +113,21 @@ if __name__ == '__main__':
                     print('  ERROR. Missing expected entries.')
                     continue
 
+
                 # Look for entry in data that has same n_samples value
-                entry = list(filter(lambda data_entry: data_entry['compression_ratio'] == compression_ratio, data))
+                entry = list(filter(lambda data_entry: data_entry['ratio'] == ratio, data))
+                #entry = list(filter(lambda data_entry: data_entry['number_of_layers'] == number_of_layers, data))
+                #entry = list(filter(lambda data_entry: data_entry['device_size'] == device_size, data))
+
                 if entry:
                     entry[0]['score_odq'].append(score_odq)
                     entry[0]['score_res'].append(score_res)
                     entry[0]['history_odq'].append(data_temp['history_odq_w3'])
                     entry[0]['history_reservoir'].append(data_temp['history_reservoir'])
+
                 else:
-                    data.append({'compression_ratio': compression_ratio,
-                                 'score_odq': [score_odq], 'score_res': [score_res],
+                    data.append({'number_of_layers': number_of_layers, 'device_size': device_size, 'compression_ratio': compression_ratio,
+                                 'ratio': ratio, 'score_odq': [score_odq], 'score_res': [score_res],
                                  'history_odq': [data_temp['history_odq_w3']], 'history_reservoir': [data_temp['history_reservoir']]})
 
             elif filetype == 'full.pkl':
@@ -110,47 +154,57 @@ if __name__ == '__main__':
 
     # Generate plots for Data Size
     if plot_type == 'Data_Size':
-        list_n          = np.array([])
-        list_odq_mean   = np.array([])
-        list_odq_std    = np.array([])
-        list_res_mean   = np.array([])
-        list_res_std    = np.array([])
-        list_full_mean = 0
-        list_full_std = 1
+        print('***********************')
+        for i in [4000]:
+            print('i = ', i)
+            list_n          = np.array([])
+            list_odq_mean   = np.array([])
+            list_odq_std    = np.array([])
+            list_res_mean   = np.array([])
+            list_res_std    = np.array([])
+            list_full_mean = 0
+            list_full_std = 1
 
-        for data_entry in data:
-            if data_entry['compression_ratio'] > 1:
-                list_n = np.append(list_n, N_datapoints // data_entry['compression_ratio'])
-                list_odq_mean = np.append(list_odq_mean, np.mean(data_entry['score_odq']))
-                list_odq_std  = np.append(list_odq_std,  np.std(data_entry['score_odq']))
-                list_res_mean = np.append(list_res_mean, np.mean(data_entry['score_res']))
-                list_res_std  = np.append(list_res_std,  np.std(data_entry['score_res']))
-            else:
-                list_full_mean = np.mean(data_entry['score_full'])
-                list_full_std  = np.std(data_entry['score_full'])
+            for data_entry in data:
+                if data_entry['compression_ratio'] > 1:
+                    print('device_size : ', data_entry['device_size'])
+                    print('number_of_layers : ', data_entry['number_of_layers'])
 
-        ind_sorted = np.argsort(list_n)
-        list_n = list_n[ind_sorted]
-        list_odq_mean = list_odq_mean[ind_sorted]
-        list_odq_std  = list_odq_std[ind_sorted]
-        list_res_mean = list_res_mean[ind_sorted]
-        list_res_std  = list_res_std[ind_sorted]
+                    print('device_size : ', data_entry['device_size'])
+                    if data_entry['device_size'] == i:
+                        list_n = np.append(list_n, data_entry['ratio'])
+                        list_odq_mean = np.append(list_odq_mean, np.mean(data_entry['score_odq']))
+                        list_odq_std  = np.append(list_odq_std,  np.std(data_entry['score_odq']))
+                        list_res_mean = np.append(list_res_mean, np.mean(data_entry['score_res']))
+                        list_res_std  = np.append(list_res_std,  np.std(data_entry['score_res']))
 
-        plt.figure()
-        plt.rc('font', family='Liberation Serif', size=14)
-        plt.xscale('log')
-        plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
-        plt.errorbar(list_n, list_odq_mean, yerr=list_odq_std)
-        plt.errorbar(list_n, list_res_mean, yerr=list_res_std)
-        plt.legend(('Full', 'ODQ', 'Reservoir'))
-        plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean + list_full_std, list_full_mean + list_full_std], 'k:')
-        plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean - list_full_std, list_full_mean - list_full_std], 'k:')
-        plt.xlabel('Number of Samples Retained')
-        plt.ylabel('Error (MSE)')
-        plt.title('Home Energy Dataset')
-        plt.grid('on')
-        plt.tight_layout()
-        plt.show()
+                else:
+                    list_full_mean = np.mean(data_entry['score_full'])
+                    list_full_std = np.std(data_entry['score_full'])
+
+            ind_sorted = np.argsort(list_n)
+            list_n = list_n[ind_sorted]
+            list_odq_mean = list_odq_mean[ind_sorted]
+            list_odq_std  = list_odq_std[ind_sorted]
+            list_res_mean = list_res_mean[ind_sorted]
+            list_res_std  = list_res_std[ind_sorted]
+
+            plt.figure()
+            plt.rc('font', family='Liberation Serif', size=12)
+            #plt.xscale('log')
+            plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
+            plt.errorbar(list_n, list_odq_mean, yerr=list_odq_std)
+            plt.errorbar(list_n, list_res_mean, yerr=list_res_std)
+            plt.legend(('Full', 'ODQ', 'Reservoir'))
+            plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean + list_full_std, list_full_mean + list_full_std], 'k:')
+            plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean - list_full_std, list_full_mean - list_full_std], 'k:')
+            #plt.xlabel('Ratio (number of Layers/number of neurons)')
+            plt.xlabel('Number of Layers')
+            plt.ylabel('Error (MSE)')
+            plt.title(list_filename_base[0] + ' dataset' + ' , device size = ' + str(i))
+            plt.grid('on')
+            plt.tight_layout()
+            plt.show()
 
     elif plot_type == 'Training':
         for data_entry in data:
@@ -159,21 +213,20 @@ if __name__ == '__main__':
                 plt.rc('font', family='Liberation Serif', size=14)
                 plt.plot(history_odq['val_mean_squared_error'], 'b')
                 plt.plot(history_reservoir['val_mean_squared_error'], 'r')
-                plt.title('Validation CR = {0}'.format(data_entry['compression_ratio']))
+                plt.title('Validation CR = {0}'.format(data_entry['number_of_layers']))
                 plt.legend(('ODQ', 'Reservoir'))
 
                 plt.figure()
                 plt.rc('font', family='Liberation Serif', size=14)
                 plt.plot(history_odq['mean_squared_error'], 'k')
                 plt.plot(history_odq['val_mean_squared_error'], 'b')
-                plt.title('ODQ CR = {0}'.format(data_entry['compression_ratio']))
+                plt.title('ODQ CR = {0}'.format(data_entry['number_of_layers']))
                 plt.legend(('Train', 'Val'))
 
                 plt.figure()
                 plt.rc('font', family='Liberation Serif', size=14)
                 plt.plot(history_reservoir['mean_squared_error'], 'k')
                 plt.plot(history_reservoir['val_mean_squared_error'], 'b')
-                plt.title('Reservoir CR = {0}'.format(data_entry['compression_ratio']))
+                plt.title('Reservoir CR = {0}'.format(data_entry['number_of_layers']))
                 plt.legend(('Train', 'Val'))
                 plt.show()
-
