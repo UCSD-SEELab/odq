@@ -846,11 +846,11 @@ if __name__ == '__main__':
     dir_quant = os.path.join(os.path.dirname(__file__), '..', 'results', 'quantized')
 
 ## To run the test on one dataset only to reduce the running time
-    # p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-    #                      list_models=list_models, TRAIN_VAL_RATIO=0.8)
-
     p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
-                          filename=os.listdir(os.path.join(dir_quant, dir_target))[0], TRAIN_VAL_RATIO=0.8)
+                          list_models=list_models, TRAIN_VAL_RATIO=0.8)
+
+    #p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
+    #                     filename=os.listdir(os.path.join(dir_quant, dir_target))[0], TRAIN_VAL_RATIO=0.8)
 
     DEBUG = False
     if DEBUG == True:
