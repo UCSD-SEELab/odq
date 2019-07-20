@@ -32,7 +32,7 @@ def get_next_color_ind():
 
 if __name__ == '__main__':
     directory_target = 'metasense_201907017'
-    plot_type = 'Training'  # 'Data_Size' / 'Training' / 'Range_Acc'
+    plot_type = 'Data_Size'  # 'Data_Size' / 'Training' / 'Range_Acc'
     list_quantizers_plot = ['reservoir', 'odq_3', 'omes', 'ks']
 
     err_max = None
