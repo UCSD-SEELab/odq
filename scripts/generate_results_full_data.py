@@ -106,6 +106,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
     # Check that file is valid
     if not (filename.lower().endswith('.pkl')):
         return
+    print ("working on : " + filename)
 
     filename_base = filename.replace('quantized.pkl', '')
     str_testtime = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -246,6 +247,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
             results_rmse = np.sqrt(np.mean((Y_predict - Y_test) ** 2, axis=0))[0]
             history = history_temp.history
             history['epoch'] = history_temp.epoch
+
 
             # Save results in dictionary structure
             # (Note: history values were taking up substantial space for very large epoch numbers. Reduced the
