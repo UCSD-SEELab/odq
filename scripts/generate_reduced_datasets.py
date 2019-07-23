@@ -103,7 +103,7 @@ def _run_quantization(ind_loop):
     """
     # Random seed value is inherited from parent process. Generated new seed for each process
     val_seed = (ind_loop + 1)*2019
-    np.random.seed(a=val_seed)
+    np.random.seed(val_seed)
 
     # Shuffle the dataset
     if DATASET is home_energy:
