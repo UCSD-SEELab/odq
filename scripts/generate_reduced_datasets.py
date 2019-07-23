@@ -101,6 +101,10 @@ def _run_quantization(ind_loop):
                 desc
                 quantizer
     """
+    # Random seed value is inherited from parent process. Generated new seed for each process
+    val_seed = (ind_loop + 1)*2019
+    np.random.seed(a=val_seed)
+
     # Shuffle the dataset
     if DATASET is home_energy:
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, pct_train=TRAIN_TEST_RATIO)
@@ -129,7 +133,7 @@ def _run_quantization(ind_loop):
     # Generate new sets of weights for selected training set
     dict_out = {'dataset_name': args.dataset, 'Y_train': Y_train, 'Y_test': Y_test, 'X_train': X_train, 'X_test': X_test,
                 'min_max_scaler_x': min_max_scaler_x, 'min_max_scaler_y': min_max_scaler_y,
-                'train_val_ratio': TRAIN_VAL_RATIO, 'train_test_ratio': TRAIN_TEST_RATIO}
+                'train_val_ratio': TRAIN_VAL_RATIO, 'train_test_ratio': TRAIN_TEST_RATIO, 'seed': val_seed}
 
     for compression_ratio in list_compression_ratio:
         dict_out['quantizer_types'] = []
