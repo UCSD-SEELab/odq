@@ -35,11 +35,11 @@ def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, '
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(200, activation='relu')(layer_input)
-        layer1 = Dropout(model_cfg['dropout'])(layer1)
+        #layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer1 = Dense(200, activation='relu')(layer1)
-        layer1 = Dropout(model_cfg['dropout'])(layer1)
+        #layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer2 = Dense(200, activation='relu')(layer1)
-        layer2 = Dropout(model_cfg['dropout'])(layer2)
+        #layer2 = Dropout(model_cfg['dropout'])(layer2)
         layer_out = Dense(N_y)(layer2)
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
@@ -76,13 +76,11 @@ def generate_model_home_energy(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'd
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(512, activation='relu')(layer_input)
-        layer1 = Dropout(0)(layer1)
+        #layer1 = Dropout(0)(layer1)
         layer1 = Dense(128, activation='relu')(layer1)
-        layer1 = Dropout(model_cfg['dropout'])(layer1)
-        # layer1 = Dense(128, activation='relu')(layer1)
-        # layer1 = Dropout(dropout)(layer1)
+        #layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer2 = Dense(128, activation='relu')(layer1)
-        layer2 = Dropout(model_cfg['dropout'])(layer2)
+        #layer2 = Dropout(model_cfg['dropout'])(layer2)
         layer_out = Dense(N_y)(layer2)
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
@@ -122,9 +120,9 @@ def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'dec
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(100, activation='relu')(layer_input)
-        layer1 = Dropout(model_cfg['dropout'])(layer1)
+        #layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer2 = Dense(100, activation='relu')(layer1)
-        layer2 = Dropout(model_cfg['dropout'])(layer2)
+        #layer2 = Dropout(model_cfg['dropout'])(layer2)
         layer_out = Dense(N_y)(layer2)
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
@@ -208,10 +206,10 @@ def generate_model_architecture_square(N_x, N_y, N_layer, N_weights, dropout):
     for i in range(0, N_layer):
         if (i == 0):
             layer = Dense(N_width, activation='relu', kernel_constraint=maxnorm(3))(layer_input)
-            layer = Dropout(dropout)(layer)
+            #layer = Dropout(dropout)(layer)
         else:
             layer = Dense(N_width, activation='relu', kernel_constraint=maxnorm(3))(layer)
-            layer = Dropout(dropout)(layer)
+            #layer = Dropout(dropout)(layer)
 
     layer_out = Dense(N_y)(layer)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
