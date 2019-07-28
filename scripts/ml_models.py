@@ -10,13 +10,14 @@ from functools import partial
 import tensorflow as tf
 
 
-def custom_loss_function_sig (y_true, y_pred, m=1 , b=0 ) :
+def custom_loss_function_sig (y_true, y_pred, min_val = -2.197, max_val = 2.197 ) :
     """
     Custom loss function for Keras using a sigmoid function of 'm' and 'b' based on y_true
     """
+    m = (-2.197 - 2.197) / (min_val - max_val)
+    b = (max_val * m - 2.197) / m
     alpha = K.exp(m*y_true +b) / (1 + K.exp(m*y_true + b))
     return alpha*K.mean(K.square(y_pred - y_true))
-
 
 def custom_loss_function_step (y_true, y_pred , b=0 ) :
     """
@@ -56,9 +57,9 @@ def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, '
         optimizer = Adam(lr=model_cfg['lr'], beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     if model_cfg['loss'] == 'sigmoid' :
-        loss_sig_b = 32.624
-        loss_sig_m = 0.125
-        loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
+        min_val = model_cfg['min_val']
+        max_val = model_cfg['max_val']
+        loss = partial(custom_loss_function_sig, min_val=min_val, max_val=max_val)
     elif model_cfg['loss'] == 'step':
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
@@ -102,9 +103,9 @@ def generate_model_home_energy(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'd
         optimizer = Adam(lr=model_cfg['lr'], beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     if model_cfg['loss'] == 'sigmoid' :
-        loss_sig_b = 32.624
-        loss_sig_m = 0.125
-        loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
+        min_val = model_cfg['min_val']
+        max_val = model_cfg['max_val']
+        loss = partial(custom_loss_function_sig, min_val=min_val, max_val=max_val)
     elif model_cfg['loss'] == 'step':
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
@@ -147,9 +148,9 @@ def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'dec
         optimizer = Adam(lr=model_cfg['lr'], beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
     if model_cfg['loss'] == 'sigmoid' :
-        loss_sig_b = 32.624
-        loss_sig_m = 0.125
-        loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
+        min_val = model_cfg['min_val']
+        max_val = model_cfg['max_val']
+        loss = partial(custom_loss_function_sig, min_val=min_val, max_val=max_val)
     elif model_cfg['loss'] == 'step':
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
@@ -171,10 +172,10 @@ def generate_model_square(N_x, N_y, N_layer, N_weights, lr=0.01, dropout=0.5, de
     elif optimizer == 'adam':
         optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
-    if loss == 'sigmoid':
-        loss_sig_b = 32.624
-        loss_sig_m = 0.125
-        loss = partial(custom_loss_function_sig, m=loss_sig_m, b=loss_sig_b)
+    if model_cfg['loss'] == 'sigmoid' :
+        min_val = model_cfg['min_val']
+        max_val = model_cfg['max_val']
+        loss = partial(custom_loss_function_sig, min_val=min_val, max_val=max_val)
     elif loss == 'step':
         loss_step_b = 1
         loss = partial(custom_loss_function_step, b=loss_step_b)
