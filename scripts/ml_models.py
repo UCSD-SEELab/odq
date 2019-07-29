@@ -152,7 +152,7 @@ def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'dec
         max_val = model_cfg['max_val']
         loss = partial(custom_loss_function_sig, min_val=min_val, max_val=max_val)
     elif model_cfg['loss'] == 'step':
-        loss_step_b = 1
+        loss_step_b = 45
         loss = partial(custom_loss_function_step, b=loss_step_b)
     else:
         loss = model_cfg['loss']
