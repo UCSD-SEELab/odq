@@ -37,11 +37,11 @@ if __name__ == '__main__':
 
     err_max = None
 
-    colors_ind = {'reservoir':  3,
-                  'omes':       0,
-                  'odq_3':      2,
-                  'odq_11':     1,
-                  'ks':         4,
+    colors_ind = {'reservoir': 2,
+                  'omes': 0,
+                  'odq_3': 1,
+                  'odq_11': 1,
+                  'ks': 3,
                   }
 
     colors_plot = {}
@@ -120,7 +120,7 @@ if __name__ == '__main__':
                 cfg_str_short
                 dataset_name
                 n_points
-                error (np.array of columns CR, RMSE, t_train)
+                error (np.array of columns CR, RMSE_test, t_train, RMSE_train)
         """
         # Collect all results from files
         N_datapoints = -1
@@ -170,7 +170,7 @@ if __name__ == '__main__':
                         cfg_str_short
                         dataset_name
                         n_points
-                        error(np.array of columns of CR, RMSE, t_train)
+                        error(np.array of columns of CR, RMSE_test, t_train, RMSE_train)
                     """
                     # Add result to data_collected['results'], combining with previous entry if available
                     dict_temp = next((entry for entry in dict_collected['results'] if
@@ -182,7 +182,7 @@ if __name__ == '__main__':
                                      'desc_quant': quantizer_result['desc'],
                                      'desc_model': model_desc,
                                      'cfg_str_short': cfg_str_short,
-                                     'error': np.zeros((0, 3))}
+                                     'error': np.zeros((0, 4))}
                         if 'n_points' in dict_in:
                             dict_temp['n_points'] = dict_in['n_points']
                         else:
@@ -196,9 +196,12 @@ if __name__ == '__main__':
                         dict_collected['results'].append(dict_temp)
 
                     if np.isnan(model_result['rmse']):
-                        print('  ERROR: {0} {1} {2} RMSE value is NaN'.format(dict_in['dataset_name'], quantizer_result['desc'], model_desc))
+                        print('  ERROR: {0} {1} {2} RMSE value is NaN'.format(dict_in['dataset_name'],
+                                                                              quantizer_result['desc'], model_desc))
+                    rmse_train = np.sqrt(dict_in['min_max_scaler_y'].scale_[0]**(-2) * model_result['history']['mean_squared_error'][-1])
                     dict_temp['error'] = np.append(dict_temp['error'],
-                                                   [[dict_in['compression_ratio'], model_result['rmse'], model_result['t_train']]],
+                                                   [[dict_in['compression_ratio'], model_result['rmse'],
+                                                     model_result['t_train'], rmse_train]],
                                                    axis=0)
 
         # Plot processed results
@@ -217,32 +220,39 @@ if __name__ == '__main__':
                     result = result_model['error']
                     list_cr = np.unique(result[:, 0])
                     list_n = []
-                    list_err_mean = []
-                    list_err_std = []
+                    list_err_tst_mean = []
+                    list_err_tst_std = []
                     list_t_mean = []
                     list_t_std = []
+                    list_err_trn_mean = []
+                    list_err_trn_std = []
 
                     for cr in list_cr:
                         temp = result[result[:,0] == cr, :]
                         temp_mean = np.nanmean(temp, axis=0)
                         temp_std = np.nanstd(temp, axis=0)
                         list_n.append(result_model['n_points'] // cr)
-                        list_err_mean.append(temp_mean[1])
-                        list_err_std.append(temp_std[1])
+                        list_err_tst_mean.append(temp_mean[1])
+                        list_err_tst_std.append(temp_std[1])
                         list_t_mean.append(temp_mean[2])
                         list_t_std.append(temp_std[2])
+                        list_err_trn_mean.append(temp_mean[3])
+                        list_err_trn_std.append(temp_std[3])
 
                     data.append({'desc_quant': result_model['desc_quant'], 'n_train': list_n,
-                                 'err_mean': list_err_mean, 'err_std': list_err_std,
+                                 'err_tst_mean': list_err_tst_mean, 'err_tst_std': list_err_tst_std,
+                                 'err_trn_mean': list_err_trn_mean, 'err_trn_std': list_err_trn_std,
                                  't_mean': list_t_mean, 't_std': list_t_std})
 
-                # Generate plot for unique model-dataset pair
+                # Generate plots for unique model-dataset pair (test line, test line + std, train line, train line + error)
+
+                # TEST ERROR, LINE PLOT
                 plt.figure()
                 plt.rc('font', family='Liberation Serif', size=14)
                 plt.xscale('log')
                 # plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
                 for datum in data:
-                    plt.errorbar(datum['n_train'], datum['err_mean'], yerr=datum['err_std'])
+                    plt.plot(datum['n_train'], datum['err_tst_mean'], color=colors_plot[datum['desc_quant']])
                 str_legend = [datum['desc_quant'] for datum in data]
                 plt.legend(str_legend)
                 if err_max:
@@ -253,11 +263,82 @@ if __name__ == '__main__':
                 plt.grid('on')
                 plt.tight_layout()
                 plt.savefig(os.path.join(directory_img,
-                                         'fig_data_size_{0}_{1}_{2}.png'.format(dataset_target,
+                                         'fig_data_size_{0}_{1}_{2}_tst.png'.format(dataset_target,
                                                                             result_model['desc_model'].split('_')[0],
-                                                                            result_model['cfg_str_short'])))
+                                                                            result_model['cfg_str'])))
                 plt.close()
-                # plt.show()
+
+                # TEST ERROR, LINE PLOT + ERROR BARS
+                plt.figure()
+                plt.rc('font', family='Liberation Serif', size=14)
+                plt.xscale('log')
+                # plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
+                for datum in data:
+                    plt.errorbar(datum['n_train'], datum['err_tst_mean'], yerr=datum['err_tst_std'],
+                                 color=colors_plot[datum['desc_quant']])
+                str_legend = [datum['desc_quant'] for datum in data]
+                plt.legend(str_legend)
+                if err_max:
+                    plt.ylim(bottom=0, top=err_max)
+                plt.xlabel('Number of Samples Retained')
+                plt.ylabel('Error (MSE)')
+                plt.title('{0} {2} ({1})'.format(dataset_target, result_model['desc_model'].split('_')[0], result_model['cfg_str_short']))
+                plt.grid('on')
+                plt.tight_layout()
+                plt.savefig(os.path.join(directory_img,
+                                         'fig_data_size_{0}_{1}_{2}_tst_std.png'.format(dataset_target,
+                                                                            result_model['desc_model'].split('_')[0],
+                                                                            result_model['cfg_str'])))
+                plt.close()
+
+                # TRAIN ERROR, LINE PLOT
+                plt.figure()
+                plt.rc('font', family='Liberation Serif', size=14)
+                plt.xscale('log')
+                # plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
+                for datum in data:
+                    plt.plot(datum['n_train'], datum['err_trn_mean'], color=colors_plot[datum['desc_quant']])
+                str_legend = [datum['desc_quant'] for datum in data]
+                plt.legend(str_legend)
+                if err_max:
+                    plt.ylim(bottom=0, top=err_max)
+                plt.xlabel('Number of Samples Retained')
+                plt.ylabel('Error (MSE)')
+                plt.title('{0} {2} ({1})'.format(dataset_target, result_model['desc_model'].split('_')[0],
+                                                 result_model['cfg_str_short']))
+                plt.grid('on')
+                plt.tight_layout()
+                plt.savefig(os.path.join(directory_img,
+                                         'fig_data_size_{0}_{1}_{2}_trn.png'.format(dataset_target,
+                                                                                    result_model['desc_model'].split(
+                                                                                        '_')[0],
+                                                                                    result_model['cfg_str'])))
+                plt.close()
+
+                # TRAIN ERROR, LINE PLOT + ERROR BARS
+                plt.figure()
+                plt.rc('font', family='Liberation Serif', size=14)
+                plt.xscale('log')
+                # plt.plot([np.min(list_n), np.max(list_n)], [list_full_mean, list_full_mean], 'k-')
+                for datum in data:
+                    plt.errorbar(datum['n_train'], datum['err_trn_mean'], yerr=datum['err_trn_std'],
+                                 color=colors_plot[datum['desc_quant']])
+                str_legend = [datum['desc_quant'] for datum in data]
+                plt.legend(str_legend)
+                if err_max:
+                    plt.ylim(bottom=0, top=err_max)
+                plt.xlabel('Number of Samples Retained')
+                plt.ylabel('Error (MSE)')
+                plt.title('{0} {2} ({1})'.format(dataset_target, result_model['desc_model'].split('_')[0],
+                                                 result_model['cfg_str_short']))
+                plt.grid('on')
+                plt.tight_layout()
+                plt.savefig(os.path.join(directory_img,
+                                         'fig_data_size_{0}_{1}_{2}_trn_std.png'.format(dataset_target,
+                                                                                        result_model[
+                                                                                            'desc_model'].split('_')[0],
+                                                                                        result_model['cfg_str'])))
+                plt.close()
 
     elif plot_type == 'Range_Acc':
         """
