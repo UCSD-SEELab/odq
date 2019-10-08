@@ -26,26 +26,29 @@ def custom_loss_function_step (y_true, y_pred , b=0 ) :
     return alpha*K.mean(K.square(y_pred - y_true))
 
 
-def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'optimizer':'sgd',
+def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'decay':1e-4, 'optimizer':'sgd',
                                                   'loss':'mean_squared_error', 'b_custommodel':False,
                                                   'N_layer':2, 'N_weights':10000}):
     """
     Create neural network model for the server power dataset
     """
+    if not('dropout' in model_cfg):
+        model_cfg['dropout'] = 0.5
+
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(200, activation='relu')(layer_input)
-        layer1 = Dropout(0.5)(layer1)
+        layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer1 = Dense(200, activation='relu')(layer1)
-        layer1 = Dropout(0.5)(layer1)
+        layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer2 = Dense(200, activation='relu')(layer1)
-        layer2 = Dropout(0.5)(layer2)
+        layer2 = Dropout(model_cfg['dropout'])(layer2)
         layer_out = Dense(N_y)(layer2)
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
     else:
         model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'],
-                                                      N_weights=model_cfg['N_weights'])
+                                                      N_weights=model_cfg['N_weights'], dropout=model_cfg['dropout'])
 
     if model_cfg['optimizer'] == 'sgd':
         optimizer = SGD(lr=model_cfg['lr'], decay=model_cfg['decay'])
@@ -67,28 +70,31 @@ def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'o
     return model_nn
 
 
-def generate_model_home_energy(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'optimizer':'sgd',
+def generate_model_home_energy(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'decay':1e-4, 'optimizer':'sgd',
                                                   'loss':'mean_squared_error', 'b_custommodel':False,
                                                   'N_layer':2, 'N_weights':10000}):
     """
     Create neural network model for the home energy dataset
     """
+    if not('dropout' in model_cfg):
+        model_cfg['dropout'] = 0.5
+
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(512, activation='relu')(layer_input)
         layer1 = Dropout(0)(layer1)
         layer1 = Dense(128, activation='relu')(layer1)
-        layer1 = Dropout(0.5)(layer1)
+        layer1 = Dropout(model_cfg['dropout'])(layer1)
         # layer1 = Dense(128, activation='relu')(layer1)
-        # layer1 = Dropout(0.5)(layer1)
+        # layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer2 = Dense(128, activation='relu')(layer1)
-        layer2 = Dropout(0.5)(layer2)
+        layer2 = Dropout(model_cfg['dropout'])(layer2)
         layer_out = Dense(N_y)(layer2)
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
     else:
         model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'],
-                                                      N_weights=model_cfg['N_weights'])
+                                                      N_weights=model_cfg['N_weights'], dropout=model_cfg['dropout'])
 
     if model_cfg['optimizer'] == 'sgd':
         optimizer = SGD(lr=model_cfg['lr'], decay=model_cfg['decay'])
@@ -110,7 +116,7 @@ def generate_model_home_energy(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'op
     return model_nn
 
 
-def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'optimizer':'sgd',
+def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'decay':1e-4, 'optimizer':'sgd',
                                                   'loss':'mean_squared_error', 'b_custommodel':False,
                                                   'N_layer':2, 'N_weights':10000}):
     """
@@ -119,18 +125,21 @@ def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'opti
     If b_custommodel is set to True, then a square model that adheres to size ('N_weights') and depth ('N_layer')
     requirements will be generated.
     """
+    if not('dropout' in model_cfg):
+        model_cfg['dropout'] = 0.5
+
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
         layer1 = Dense(100, activation='relu')(layer_input)
-        layer1 = Dropout(0.5)(layer1)
+        layer1 = Dropout(model_cfg['dropout'])(layer1)
         layer2 = Dense(100, activation='relu')(layer1)
-        layer2 = Dropout(0.5)(layer2)
+        layer2 = Dropout(model_cfg['dropout'])(layer2)
         layer_out = Dense(N_y)(layer2)
         model_nn = Model(inputs=layer_input, outputs=layer_out)
 
     else:
         model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=model_cfg['N_layer'],
-                                                      N_weights=model_cfg['N_weights'])
+                                                      N_weights=model_cfg['N_weights'], dropout=model_cfg['dropout'])
 
     if model_cfg['optimizer'] == 'sgd':
         optimizer = SGD(lr=model_cfg['lr'], decay=model_cfg['decay'])
@@ -151,11 +160,11 @@ def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'decay':1e-4, 'opti
 
     return model_nn
 
-def generate_model_square(N_x, N_y, N_layer, N_weights, lr=0.01, decay=1e-4, optimizer='sgd', loss='mean_squared_error'):
+def generate_model_square(N_x, N_y, N_layer, N_weights, lr=0.01, dropout=0.5, decay=1e-4, optimizer='sgd', loss='mean_squared_error'):
     """
     Wrapper to generate a fully connected neural network architecture
     """
-    model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=N_layer, N_weights=N_weights)
+    model_nn = generate_model_architecture_square(N_x=N_x, N_y=N_y, N_layer=N_layer, N_weights=N_weights, dropout=dropout)
 
     if optimizer == 'sgd':
         optimizer = SGD(lr=lr, decay=decay)
@@ -174,7 +183,7 @@ def generate_model_square(N_x, N_y, N_layer, N_weights, lr=0.01, decay=1e-4, opt
 
     return model_nn
 
-def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
+def generate_model_architecture_square(N_x, N_y, N_layer, N_weights, dropout):
     """
     Generate a fully connected neural network architecture that has 'N_layer' hidden layers with a maximum number of
     'N_weights' parameters
@@ -208,10 +217,10 @@ def generate_model_architecture_square(N_x, N_y, N_layer, N_weights):
     for i in range(0, N_layer):
         if (i == 0):
             layer = Dense(N_width, activation='relu', kernel_constraint=maxnorm(3))(layer_input)
-            layer = Dropout(0.5)(layer)
+            layer = Dropout(dropout)(layer)
         else:
             layer = Dense(N_width, activation='relu', kernel_constraint=maxnorm(3))(layer)
-            layer = Dropout(0.5)(layer)
+            layer = Dropout(dropout)(layer)
 
     layer_out = Dense(N_y)(layer)
     model_nn = Model(inputs=layer_input, outputs=layer_out)
