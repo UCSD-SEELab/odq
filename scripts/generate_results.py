@@ -124,7 +124,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
         if 'compression_ratio' in dict_in:
             compression_ratio = dict_in['compression_ratio']
         else:
-            compression_ratio = float(filename_parts[4])
+            compression_ratio = float(filename_parts[-3])
 
     except:
         print('ERROR loading from {0}. Skipping.'.format(filename))
