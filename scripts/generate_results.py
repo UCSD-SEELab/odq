@@ -103,9 +103,12 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
     try:
         with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
             dict_in = pkl.load(fid)
+            print('in line 106')
         min_max_scaler_x = dict_in['min_max_scaler_x']
         min_max_scaler_y = dict_in['min_max_scaler_y']
+        print('in line 109')
         list_quantizers = dict_in['quantizers']
+        print('in line 111')
         X_train = dict_in['X_train']
         Y_train = dict_in['Y_train']
         X_test = dict_in['X_test']
@@ -113,18 +116,23 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
         if 'dataset_name' in dict_in:
             dataset_name = dict_in['dataset_name']
+            print('in line 119')
         else:
             filename_parts = filename.split('_')
             if filename_parts[1] == 'data':
                 dataset_name = '{0}'.format(filename_parts[0])
+                print('in line 124')
             else:
                 dataset_name = '{0}_{1}'.format(filename_parts[0], filename_parts[1])
+                print('in line 127')
         DATASET = eval(dataset_name)
-
+        print('in line 129')
         if 'compression_ratio' in dict_in:
             compression_ratio = dict_in['compression_ratio']
+            print('in line 132')
         else:
             compression_ratio = float(filename_parts[-3])
+            print('in line 135')
 
     except:
         print('ERROR loading from {0}. Skipping.'.format(filename))
