@@ -34,7 +34,7 @@ def generate_model_server_power(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, '
     Create neural network model for the server power dataset
     """
     if not('dropout' in model_cfg):
-        model_cfg['dropout'] = 0.5
+        model_cfg['dropout'] = 0
 
     if model_cfg['b_custommodel'] == False:
         layer_input = Input(shape=(N_x,))  # Input features
