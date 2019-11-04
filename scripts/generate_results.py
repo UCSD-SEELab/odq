@@ -51,16 +51,11 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                  TRAIN_VAL_RATIO = 0.8, list_models=[{'desc': 'NN_default'}]):
     """
     Generate results for neural network processing of the quantized dataset
-
     Input dictionary for list_models:
-
         list_models (list)
             desc
             cfg
-
-
     Structure of input dictionary from generate_reduced_datasets.py
-
         dict_in
             dataset_name
             compression_ratio
@@ -75,9 +70,7 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
             quantizers (list)
                 desc
                 quantizer
-
     Structure of output dictionary:
-
         dict_out
             dataset_name
             compression_ratio
@@ -110,9 +103,12 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
     try:
         with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
             dict_in = pkl.load(fid)
+            print('in line 106')
         min_max_scaler_x = dict_in['min_max_scaler_x']
         min_max_scaler_y = dict_in['min_max_scaler_y']
+        print('in line 109')
         list_quantizers = dict_in['quantizers']
+        print('in line 111')
         X_train = dict_in['X_train']
         Y_train = dict_in['Y_train']
         X_test = dict_in['X_test']
@@ -120,18 +116,23 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
         if 'dataset_name' in dict_in:
             dataset_name = dict_in['dataset_name']
+            print('in line 119')
         else:
             filename_parts = filename.split('_')
             if filename_parts[1] == 'data':
                 dataset_name = '{0}'.format(filename_parts[0])
+                print('in line 124')
             else:
                 dataset_name = '{0}_{1}'.format(filename_parts[0], filename_parts[1])
+                print('in line 127')
         DATASET = eval(dataset_name)
-
+        print('in line 129')
         if 'compression_ratio' in dict_in:
             compression_ratio = dict_in['compression_ratio']
+            print('in line 132')
         else:
             compression_ratio = float(filename_parts[-3])
+            print('in line 135')
 
     except:
         print('ERROR loading from {0}. Skipping.'.format(filename))
@@ -297,15 +298,11 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
     FLAG_OVERWRITE = False
     FLAG_SAVEIMG = True
     dir_img_full = os.path.join(dir_quant, '..', 'img', dir_target)
-
     # Check that file is valid
     if not (filename.lower().endswith('.pkl')):
         return
-
     filename_base = filename.replace('quantized.pkl', '')
-
     print('{0}: Loading data'.format(filename))
-
     try:
         with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
             data_temp = pkl.load(fid)
@@ -324,7 +321,6 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
             quantizer_type = data_temp['quantizer_type']
         else:
             quantizer_type = 'unknown'
-
         filename_parts = filename.split('_')
         if filename_parts[1] == 'data':
             DATASET = eval('{0}'.format(filename_parts[0]))
@@ -335,35 +331,27 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
     except:
         print('  ERROR. Skipping.')
         return
-
     # Process data
     N_datapoints = X_train.shape[0]
     N_x = X_train.shape[1]
     N_y = Y_train.shape[1]
-
     if DATASET is home_energy:
         N_epochs = int(max(200, 50*compression_ratio))
     else:
         N_epochs = int(max(200, 30*compression_ratio))
-
     dir_target_full = os.path.join(dir_quant, '..', 'raw', dir_target)
     if not os.path.exists(dir_target_full):
         os.mkdir(dir_target_full)
-
     if not os.path.exists(dir_img_full):
         os.mkdir(dir_img_full)
-
     for ind_loop in range(N_trials):
         print('{0}: Trial {1} of {2}:'.format(filename, ind_loop + 1, N_trials))
-
         for lr in list_lr:
             for decay in list_decay:
-
                 if not(FLAG_SAVEIMG) and os.path.isfile(
                         os.path.join(dir_target_full, filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop))):
                     print('  File already processed')
                     continue
-
                 # Create machine learning models for each evaluation step
                 list_model_quant = []
                 if DATASET is server_power:
@@ -372,35 +360,25 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
                     generate_model = generate_model_home_energy
                 elif DATASET is metasense:
                     generate_model = generate_model_metasense
-
                 for _ in list_quantizers:
                     list_model_quant.append(generate_model(N_x, N_y, lr=lr, decay=decay, optimizer='sgd'))
                 model_reservoir = generate_model(N_x, N_y, lr=lr, decay=decay, optimizer='sgd')
-
                 # Perform training from reservoir data first, saving the validation set
                 time_start = time.time()
                 X_temp, Y_temp = reservoir_sampler.get_dataset()
-
                 X_temp = min_max_scaler_x.transform(X_temp)
                 Y_temp = min_max_scaler_y.transform(Y_temp)
-
                 X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
-
                 history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=32, epochs=N_epochs, verbose=0,
                                                    validation_data=(X_val, Y_val))
                 history_reservoir = history_temp.history
                 history_reservoir['epoch'] = history_temp.epoch
-
                 score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test),
                                                            min_max_scaler_y.transform(Y_test), verbose=0)
-
                 Y_reservoir_predict = min_max_scaler_y.inverse_transform(
                     model_reservoir.predict(min_max_scaler_x.transform(X_test)))
-
                 results_reservoir_rmse = np.sqrt(np.mean((Y_reservoir_predict - Y_test) ** 2, axis=0))
-
                 print('{0}: Reservoir LR: {1} Decay: {2} RMSE: {3} Time: {4:0.2f} s'.format(filename, lr, decay, np.array2string(results_reservoir_rmse, precision=2, suppress_small=True), time.time() - time_start))
-
                 plt.figure()
                 plt.title('Reservoir CR {3} trial {0} lr={1} decay={2}'.format(ind_loop, lr, decay, compression_ratio))
                 plt.plot(history_reservoir['epoch'], history_reservoir['mean_squared_error'])
@@ -408,23 +386,17 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
                 plt.legend(('Train', 'Test'))
                 plt.savefig(os.path.join(dir_img_full, 'Convergence_' + filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop)))
                 plt.close()
-
                 dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
                             'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
                             'N_datapoints': N_datapoints}
-
                 for dict_quantizer, model_quant in zip(list_quantizers, list_model_quant):
                     quantizer = dict_quantizer['quantizer']
-
                     time_start = time.time()
                     X_temp, Y_temp = quantizer.get_dataset()
                     w_temp = quantizer.get_sample_weights()
-
                     w_temp = w_temp * w_temp.shape[0] / np.sum(w_temp)
-
                     X_temp = min_max_scaler_x.transform(X_temp)
                     Y_temp = min_max_scaler_y.transform(Y_temp)
-
                     # Train using validation set from reservoir sampling. Size is already taken into account in
                     # generate_reduced_datasets.py
                     history_temp = model_quant.fit(X_temp, Y_temp, batch_size=32, epochs=N_epochs, sample_weight=w_temp,
@@ -432,17 +404,12 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
                                                  validation_data=(X_val, Y_val))
                     history_quant = history_temp.history
                     history_quant['epoch'] = history_temp.epoch
-
                     score_quant = model_quant.evaluate(min_max_scaler_x.transform(X_test),
                                                    min_max_scaler_y.transform(Y_test), verbose=0)
-
                     Y_quant_predict = min_max_scaler_y.inverse_transform(
                         model_quant.predict(min_max_scaler_x.transform(X_test)))
-
                     results_quant_rmse = np.sqrt(np.mean((Y_quant_predict - Y_test) ** 2, axis=0))
-
                     print('{0}: {5} LR: {1} Decay: {2} RMSE: {3} Time: {4:0.2f} s'.format(filename, lr, decay, np.array2string(results_quant_rmse, precision=2, suppress_small=True), time.time() - time_start, quantizer))
-
                     plt.figure()
                     plt.title('Quantizer {4} CR {3} trial {0} lr={1} decay={2}'.format(ind_loop, lr, decay, compression_ratio,
                                                                                   quantizer_type))
@@ -451,15 +418,12 @@ def run_convergence_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=Tru
                     plt.legend(('Train', 'Test'))
                     plt.savefig(os.path.join(dir_img_full, 'Convergence_' + filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop)))
                     plt.close()
-
                     dict_out['history_{0}'.format(quantizer_type)] = history_quant
                     dict_out['score_{0}'.format(quantizer_type)] = score_quant
                     dict_out['Y_quant_predict_{0}'.format(quantizer_type)] = Y_quant_predict
-
                 # Save all results for subsequent processing
                 with open(os.path.join(dir_target_full, filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop)), 'wb') as fid:
                     pkl.dump(dict_out, fid)
-
                 # Reset Tensorflow session to prevent memory growth
                 K.clear_session()
     """
@@ -472,21 +436,16 @@ def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=T
     return
     """
     FLAG_OVERWRITE = False
-
     # Check that file is valid
     if not (filename.lower().endswith('.pkl')):
         return
-
     filename_base = filename.replace('quantized.pkl', '')
-
     print('\n\nLoading data from {0}'.format(filename))
-
     try:
         with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
             data_temp = pkl.load(fid)
         min_max_scaler_x = data_temp['min_max_scaler_x']
         min_max_scaler_y = data_temp['min_max_scaler_y']
-
         X_train = data_temp['X_train']
         Y_train = data_temp['Y_train']
         X_test = data_temp['X_test']
@@ -495,7 +454,6 @@ def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=T
             quantizer_type = data_temp['quantizer_type']
         else:
             quantizer_type = 'unknown'
-
         filename_parts = filename.split('_')
         if filename_parts[1] == 'data':
             DATASET = eval('{0}'.format(filename_parts[0]))
@@ -506,39 +464,30 @@ def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=T
     except:
         print('  ERROR. Skipping.')
         return
-
     # Process data
     N_datapoints = X_train.shape[0]
     N_x = X_train.shape[1]
     N_y = Y_train.shape[1]
-
     if DATASET is home_energy:
         N_epochs = int(max(500, 50*compression_ratio))
     else:
         N_epochs = int(max(200, 30*compression_ratio))
-
     print('\n\nCompression Ratio {0}'.format(compression_ratio))
-
     for ind_loop in range(N_trials):
         print('  Trial {0} of {1}:'.format(ind_loop + 1, N_trials))
-
         for lr in list_lr:
             config_tf_session(b_cpu)
-
             print('  lr: {0}'.format(lr))
-
             if not(FLAG_OVERWRITE) and os.path.isfile(
                     os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
                                  dir_target,
                                  filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop))):
                 print('  File already processed')
                 continue
-
             # Create an early stopping callback appropriate for the dataset size
             cb_earlystopping = EarlyStopping(monitor='val_loss',
                                              patience=max([20, min([compression_ratio*lr/0.00005, 250])]),
                                              restore_best_weights=True)
-
             # Create machine learning models for each evaluation step
             list_model_quant = []
             if DATASET is server_power:
@@ -547,19 +496,14 @@ def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=T
                 generate_model = generate_model_home_energy
             elif DATASET is metasense:
                 generate_model = generate_model_metasense
-
             model_reservoir = generate_model(N_x, N_y, lr=lr, loss=loss_fnc)
-
             # Perform training from reservoir data first, saving the validation set
             time_start = time.time()
           #  print('    Generating from Reservoir-reduced Data')
            # X_temp, Y_temp = reservoir_sampler.get_dataset()
-
             X_temp = min_max_scaler_x.transform(X_train)
             Y_temp = min_max_scaler_y.transform(Y_train)
-
             X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
-
             # Train the model on 10 epochs before checking for early stopping conditions to prevent premature return
             history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=64, epochs=10, verbose=0,
                                                validation_data=(X_val, Y_val))
@@ -575,30 +519,21 @@ def run_nn_tests_with_lossF(filename, dir_quant, dir_target, N_trials=3, b_cpu=T
             history_reservoir['loss'].extend(history_temp.history['loss'])
             history_reservoir['mean_squared_error'].extend(history_temp.history['mean_squared_error'])
             history_reservoir['mean_absolute_error'].extend(history_temp.history['mean_absolute_error'])
-
             score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
-
             Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
-
             results_reservoir_rmse = np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2, axis=0))
-
             print('    RMSE: {0}'.format(np.array2string(results_reservoir_rmse, precision=2, suppress_small=True)))
             print('    Time: {0:0.2f} s'.format(time.time() - time_start))
-
             dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
                         'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
                         'N_datapoints': N_datapoints}
-
-
                 # Save all results for subsequent processing
             dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
             if not os.path.exists(dir_target_full):
                 os.mkdir(dir_target_full)
-
             with open(os.path.join(dir_target_full,
                                    filename_base + '{0}_lr{1}_c{2}_results_trial{3}_reduced.pkl'.format(quantizer_type, lr, ind_loop, lr, costtype, ind_loop)), 'wb') as fid:
                 pkl.dump(dict_out, fid)
-
             # Reset Tensorflow session to prevent memory growth
             K.clear_session()
     """
@@ -611,15 +546,11 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
     return
     """
     FLAG_OVERWRITE = False
-
     # Check that file is valid
     if not (filename.lower().endswith('.pkl')):
         return
-
     filename_base = filename.replace('quantized.pkl', '')
-
     print('\n\nLoading data from {0}'.format(filename))
-
     try:
         with open(os.path.join(dir_quant, dir_target, filename), 'rb') as fid:
             data_temp = pkl.load(fid)
@@ -638,7 +569,6 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
             quantizer_type = data_temp['quantizer_type']
         else:
             quantizer_type = 'unknown'
-
         filename_parts = filename.split('_')
         if filename_parts[1] == 'data':
             DATASET = eval('{0}'.format(filename_parts[0]))
@@ -649,27 +579,20 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
     except:
         print('  ERROR. Skipping.')
         return
-
     # Process data
     N_datapoints = X_train.shape[0]
     N_x = X_train.shape[1]
     N_y = Y_train.shape[1]
-
     if DATASET is home_energy:
         N_epochs = int(max(500, 50*compression_ratio))
     else:
         N_epochs = int(max(200, 30*compression_ratio))
-
     print('\n\nCompression Ratio {0}'.format(compression_ratio))
-
     for ind_loop in range(N_trials):
         print('  Trial {0} of {1}:'.format(ind_loop + 1, N_trials))
-
         for lr in list_lr:
             config_tf_session(b_cpu)
-
             print('  lr: {0}'.format(lr))
-
             if not(FLAG_OVERWRITE) and os.path.isfile(
                     os.path.join(os.path.dirname(__file__), '..', 'results', 'raw',
                                  dir_target,
@@ -677,38 +600,28 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
                                      quantizer_type, lr, ind_loop, lr, costtype, ind_loop, N_depth, N_weights))):
                 print('  File already processed')
                 continue
-
             # Create an early stopping callback appropriate for the dataset size
             cb_earlystopping = EarlyStopping(monitor='val_loss',
                                              patience=max([20, min([compression_ratio*lr/0.00005, 250])]),
                                              restore_best_weights=True)
-
             # Create machine learning models for each evaluation step
             list_model_quant = []
-
-
-
             if DATASET is server_power:
                 generate_model = generate_model_square
             elif DATASET is home_energy:
                 generate_model = generate_model_square
             elif DATASET is metasense:
                 generate_model = generate_model_square
-
             for _ in list_quantizers:
                 list_model_quant.append(generate_model(N_x, N_y, N_depth=N_depth, N_weights=N_weights, lr=lr))
             model_reservoir = generate_model(N_x, N_y, N_depth=N_depth, N_weights=N_weights, lr=lr)
-
             # Perform training from reservoir data first, saving the validation set
             time_start = time.time()
             print('    Generating from Reservoir-reduced Data')
             X_temp, Y_temp = reservoir_sampler.get_dataset()
-
             X_temp = min_max_scaler_x.transform(X_temp)
             Y_temp = min_max_scaler_y.transform(Y_temp)
-
             X_fit, X_val, Y_fit, Y_val = train_test_split(X_temp, Y_temp, pct_train=TRAIN_VAL_RATIO)
-
             # Train the model on 10 epochs before checking for early stopping conditions to prevent premature return
             history_temp = model_reservoir.fit(X_fit, Y_fit, batch_size=64, epochs=10, verbose=0,
                                                validation_data=(X_val, Y_val))
@@ -724,34 +637,24 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
             history_reservoir['loss'].extend(history_temp.history['loss'])
             history_reservoir['mean_squared_error'].extend(history_temp.history['mean_squared_error'])
             history_reservoir['mean_absolute_error'].extend(history_temp.history['mean_absolute_error'])
-
             score_reservoir = model_reservoir.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
-
             Y_reservoir_predict = min_max_scaler_y.inverse_transform(model_reservoir.predict(min_max_scaler_x.transform(X_test)))
-
             results_reservoir_rmse = np.sqrt(np.mean((Y_reservoir_predict - Y_test)**2, axis=0))
-
             print('    RMSE: {0}'.format(np.array2string(results_reservoir_rmse, precision=2, suppress_small=True)))
             print('    Time: {0:0.2f} s'.format(time.time() - time_start))
-
             dict_out = {'history_reservoir': history_reservoir, 'score_reservoir': score_reservoir,
                         'Y_reservoir_predict': Y_reservoir_predict, 'Y_test': Y_test, 'X_test': X_test,
                         'N_datapoints': N_datapoints, 'N_trials': N_trials, 'list_lr': list_lr,
                         'TRAIN_VAL_RATIO': TRAIN_VAL_RATIO, 'Number_of_Layers': N_depth, 'Device_RAM_Size': N_weights}
-
             for dict_quantizer, model_quant in zip(list_quantizers, list_model_quant):
                 quantizer = dict_quantizer['quantizer']
-
                 time_start = time.time()
                 print('    Generating model from {0}-reduced Data'.format(quantizer_type))
                 X_temp, Y_temp = quantizer.get_dataset()
                 w_temp = quantizer.get_sample_weights()
-
                 w_temp = w_temp * w_temp.shape[0] / np.sum(w_temp)
-
                 X_temp = min_max_scaler_x.transform(X_temp)
                 Y_temp = min_max_scaler_y.transform(Y_temp)
-
                 # Train using validation set from reservoir sampling. Size is already taken into account in
                 # generate_reduced_datasets.py
                 if b_usefreq:
@@ -772,30 +675,22 @@ def run_sq_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True, lis
                 history_quant['loss'].extend(history_temp.history['loss'])
                 history_quant['mean_squared_error'].extend(history_temp.history['mean_squared_error'])
                 history_quant['mean_absolute_error'].extend(history_temp.history['mean_absolute_error'])
-
                 score_quant = model_quant.evaluate(min_max_scaler_x.transform(X_test), min_max_scaler_y.transform(Y_test), verbose=0)
-
                 Y_quant_predict = min_max_scaler_y.inverse_transform(model_quant.predict(min_max_scaler_x.transform(X_test)))
-
                 results_quant_rmse = np.sqrt(np.mean((Y_quant_predict - Y_test)**2, axis=0))
-
                 print('    RMSE: {0}'.format(np.array2string(results_quant_rmse, precision=2, suppress_small=True)))
                 print('    Time: {0:0.2f} s'.format(time.time() - time_start))
-
                 dict_out['history_{0}'.format(quantizer_type)] = history_quant
                 dict_out['score_{0}'.format(quantizer_type)] = score_quant
                 dict_out['Y_quant_predict_{0}'.format(quantizer_type)] = Y_quant_predict
-
                 # Save all results for subsequent processing
                 dir_target_full = os.path.join(os.path.dirname(__file__), '..', 'results', 'raw', dir_target)
                 if not os.path.exists(dir_target_full):
                     os.mkdir(dir_target_full)
-
             with open(os.path.join(dir_target_full,
                                    filename_base + '{0}_lr{1}_c{2}_depth{4}_ram{5}_results_trial{3}_reduced.pkl'.format(
                                        quantizer_type, lr, ind_loop, lr, costtype, ind_loop, N_depth, N_weights)), 'wb') as fid:
                 pkl.dump(dict_out, fid)
-
             # Reset Tensorflow session to prevent memory growth
             K.clear_session()
     """
