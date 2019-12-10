@@ -44,7 +44,7 @@ def config_tf_session(b_cpu):
                                           'GPU': num_GPU}
                             )
 
-    session = tf.Session(config=config)
+    session = tf.compat.v1.Session(config=config)
     K.set_session(session)
 
 def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
