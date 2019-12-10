@@ -743,7 +743,7 @@ if __name__ == '__main__':
     p_run_tests = partial(run_nn_tests, dir_quant=dir_quant, dir_target=dir_target, N_trials=N_trials,
                           list_models=list_models, TRAIN_VAL_RATIO=0.8)
 
-    DEBUG = True
+    DEBUG = False
     if DEBUG == True:
         for filename in os.listdir(os.path.join(dir_quant, dir_target)):
             p_run_tests(filename=filename)
