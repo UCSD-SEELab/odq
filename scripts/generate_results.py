@@ -12,6 +12,7 @@ import json
 import numpy as np
 from keras.callbacks import EarlyStopping
 from keras import backend as K
+
 import tensorflow as tf
 
 from ml_models import generate_model_server_power, generate_model_home_energy, generate_model_metasense, train_test_split, train_test_split_blocks, generate_model_square
@@ -45,7 +46,7 @@ def config_tf_session(b_cpu):
                             )
 
     session = tf.compat.v1.Session(config=config)
-    K.set_session(session)
+    tf.compat.v1.keras.backend.set_session(session)
 
 def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                  TRAIN_VAL_RATIO = 0.8, list_models=[{'desc': 'NN_default'}]):
