@@ -37,7 +37,7 @@ def config_tf_session(b_cpu):
         num_GPU = 1
         num_CPU = num_cores
 
-    config = tf.ConfigProto(intra_op_parallelism_threads=num_cores,
+    config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=num_cores,
                             inter_op_parallelism_threads=num_cores,
                             allow_soft_placement=True,
                             device_count={'CPU': num_CPU,
