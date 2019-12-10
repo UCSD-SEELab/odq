@@ -10,7 +10,7 @@ from functools import partial
 import tensorflow as tf
 
 
-def custom_loss_function_sig( min_val = -2.197, max_val = 2.197, y_true, y_pred) :
+def custom_loss_function_sig(y_true, y_pred, min_val = -2.197, max_val = 2.197 ) :
     """
     Custom loss function for Keras using a sigmoid function of 'm' and 'b' based on y_true
     """
