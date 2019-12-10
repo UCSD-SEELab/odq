@@ -226,14 +226,14 @@ def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
 
                 if not(dict_quantizer['desc'] == 'reservoir'):
                     X_temp, Y_temp = dict_quantizer['quantizer'].get_dataset()
-                    sample_weight = dict_quantizer['quantizer'].get_sample_weights()
+                   # sample_weight = dict_quantizer['quantizer'].get_sample_weights()
 
                     X_fit = min_max_scaler_x.transform(X_temp)
                     Y_fit = min_max_scaler_y.transform(Y_temp)
                 else:
                     X_fit = X_fit_res
                     Y_fit = Y_fit_res
-                    sample_weight = None
+                    #sample_weight = None
 
                 time_start = time.time()
                 history_temp = model.fit(X_fit, Y_fit, batch_size=64, epochs=N_epochs, verbose=0,
