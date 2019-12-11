@@ -10,7 +10,7 @@ from functools import partial
 import tensorflow as tf
 
 
-def custom_loss_function_sig(y_true, y_pred, min_val = -2.197, max_val = 2.197 ) :
+def custom_loss_function_sig(y_true, y_pred, min_val = -2.197, max_val = 2.197 , sample_weight=None) :
     """
     Custom loss function for Keras using a sigmoid function of 'm' and 'b' based on y_true
     """
@@ -19,7 +19,7 @@ def custom_loss_function_sig(y_true, y_pred, min_val = -2.197, max_val = 2.197 )
     alpha = K.exp(m*y_true +b) / (1 + K.exp(m*y_true + b))
     return alpha*K.mean(K.square(y_pred - y_true))
 
-def custom_loss_function_step(y_true, y_pred , b=0 ) :
+def custom_loss_function_step(y_true, y_pred , b=0 , sample_weight=None) :
     """
     Custom loss function for Keras using a step function at 'b' based on y_true
     """
