@@ -39,15 +39,15 @@ def config_tf_session(b_cpu):
         num_GPU = 1
         num_CPU = num_cores
 
-    config = tf.ConfigProto(intra_op_parallelism_threads=num_cores,
+    config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=num_cores,
                             inter_op_parallelism_threads=num_cores,
                             allow_soft_placement=True,
                             device_count={'CPU': num_CPU,
                                           'GPU': num_GPU}
                             )
 
-    session = tf.Session(config=config)
-    K.set_session(session)
+    session = tf.compat.v1.Session(config=config)
+    tf.compat.v1.keras.backend.set_session(session)
 
 def run_nn_tests(filename, dir_quant, dir_target, N_trials=3, b_cpu=True,
                  TRAIN_VAL_RATIO = 0.8, list_models=[{'desc': 'NN_default'}]):
