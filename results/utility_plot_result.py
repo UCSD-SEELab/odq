@@ -31,9 +31,9 @@ def get_next_color_ind():
     return colormap_ind
 
 if __name__ == '__main__':
-    directory_target = '<insert results/raw folder name>'
-    plot_type = '<insert plot type>'  # 'Data_Size' / 'Training' / 'Range_Acc'
-    list_quantizers_plot = ['reservoir', 'odq_3', 'omes', 'ks']
+    directory_target = 'results_20190828_16x'
+    plot_type = 'Loss_Analysis'  # 'Data_Size' / 'Training' / 'Range_Acc' / 'Loss_Analysis'
+    list_quantizers_plot = ['reservoir'] # , 'odq_3', 'omes', 'ks']
 
     err_max = None
 
@@ -572,3 +572,190 @@ if __name__ == '__main__':
                                                                                    cfg_str_short,
                                                                                    quantizer_result['desc'])))
                     plt.close()
+
+    elif plot_type == 'Loss_Analysis':
+        """
+        Comparison of different loss functions
+        
+        """
+
+        colors_ind = {'mse': 0,
+                      'sigmoid_10_55': 1,
+                      'sigmoid_45_55': 2,
+                      'step': 3,
+                      }
+
+        colors_plot = {}
+        for key in colors_ind:
+            colors_plot[key] = colormap(colors_ind[key])
+
+        for file in os.listdir(directory):
+            if not (file.lower().endswith('.pkl')):
+                continue
+
+            print('Loading data from {0}'.format(file))
+
+            try:
+                with open(os.path.join(directory, file), 'rb') as fid:
+                    dict_in = pkl.load(fid)
+                print('  SUCCESS')
+            except:
+                print('  ERROR. Skipping.')
+
+            filename_save = file.replace('.pkl', '')
+
+            Y_test = dict_in['Y_test']
+
+            for quantizer_result in dict_in['quantizer_results']:
+                if not (quantizer_result['desc'] in list_quantizers_plot):
+                    continue
+
+                if not (quantizer_result['desc'] in colors_ind):
+                    colors_ind[quantizer_result['desc']] = get_next_color_ind()
+
+                for model_result in quantizer_result['model_results']:
+                    cfg_str_short = ''
+
+                    if not (model_result['desc'].endswith('default')) and ('cfg' in model_result):
+                        if ('N_layer' in model_result['cfg']) and ('N_weights' in model_result['cfg']):
+                            cfg_str_short += 'Nlayer{0}_Nweights{1}'.format(model_result['cfg']['N_layer'],
+                                                                                   model_result['cfg']['N_weights'])
+                        else:
+                            cfg_str_short += 'unknown'
+                    else:
+                        cfg_str_short += 'default'
+
+                    if 'lr' in model_result['cfg']:
+                        cfg_str_short += '_lr{0}'.format(model_result['cfg']['lr'])
+                    else:
+                        cfg_str_short += '_lrdefault'
+                    if 'decay' in model_result['cfg']:
+                        cfg_str_short += '_decay{0}'.format(model_result['cfg']['decay'])
+                    else:
+                        cfg_str_short += '_decaydefault'
+
+
+
+                    loss_desc = ''
+                    if model_result['cfg']['loss'] == 'mean_squared_error':
+                        loss_desc += 'mse'
+                    elif model_result['cfg']['loss'] == 'step':
+                        loss_desc += 'step'
+                    elif model_result['cfg']['loss'] == 'sigmoid':
+                        loss_desc += 'sigmoid_{0}_{1}'.format(model_result['cfg']['min_val'],
+                                                         model_result['cfg']['max_val'])
+
+                    model_desc = '{0}{1}'.format(model_result['desc'], cfg_str_short)
+
+                    """
+                    Y_results (list)
+                        desc_quant
+                        desc_model
+                        cfg_str_short
+                        dataset_name
+                        compression_ratio
+                        loss_results (list)
+                            desc_loss
+                            Y_predict (1d flattened array)
+                            Y_test    (1d flattened array, same size as Y_predict)
+                    """
+                    # Add result to data_collected['Y_results'], combining with previous entry if available
+                    if np.isnan(model_result['Y_predict']).any():
+                        continue
+
+                    # Find correct entry in Y_results that matches dataset (dataset_name), quantizer (desc_quant),
+                    # compression ratio, and ML model (desc_model)
+                    dict_temp_Y = next((entry for entry in dict_collected['Y_results'] if
+                                        (entry['dataset_name'] == dict_in['dataset_name']) and
+                                        (entry['desc_quant'] == quantizer_result['desc']) and
+                                        (entry['compression_ratio'] == dict_in['compression_ratio']) and
+                                        (entry['desc_model'] == model_desc)), None)
+                    if dict_temp_Y is not None:
+                        # If entry found, then find the correct loss_results entry
+                        dict_result_Y = next((entry for entry in dict_temp_Y['loss_results'] if
+                                              (entry['desc_loss'] == loss_desc)), None)
+                        if dict_result_Y is None:
+                            dict_result_Y = {'desc_loss': loss_desc,
+                                             'Y_predict': [], 'Y_test': []}
+                            dict_temp_Y['loss_results'].append(dict_result_Y)
+                        dict_result_Y['Y_predict'].extend(model_result['Y_predict'].flatten().tolist())
+                        dict_result_Y['Y_test'].extend(dict_in['Y_test'].flatten().tolist())
+                    else:
+                        dict_temp_Y = {'dataset_name': dict_in['dataset_name'],
+                                       'compression_ratio': dict_in['compression_ratio'],
+                                       'desc_quant': quantizer_result['desc'],
+                                       'desc_model': model_desc, 'cfg_str_short': cfg_str_short,
+                                       'loss_results': [{'desc_loss': loss_desc,
+                                                         'Y_predict': model_result['Y_predict'].flatten().tolist(),
+                                                         'Y_test': dict_in['Y_test'].flatten().tolist()}]}
+                        dict_collected['Y_results'].append(dict_temp_Y)
+
+        # Plot processed results
+        N_segs = 10     # number of bins used for dividing up the measurement range of the test set
+
+        list_dataset = np.unique([Y_result['dataset_name'] for Y_result in dict_collected['Y_results']])
+
+        for dataset_target in list_dataset:
+            for Y_result in [dataset for dataset in dict_collected['Y_results'] if dataset['dataset_name'] == dataset_target]:
+                """
+                Y_results (list)
+                    desc_quant
+                    desc_model
+                    cfg_str_short
+                    dataset_name
+                    compression_ratio
+                    loss_results (list)
+                        desc_loss
+                        Y_predict (1d flattened array)
+                        Y_test    (1d flattened array, same size as Y_predict)
+                """
+
+                # Find min and max of Y_test
+                Y_min = min([min(result['Y_test']) for result in Y_result['loss_results']])
+                Y_max = max([max(result['Y_test']) for result in Y_result['loss_results']])
+
+                N_losses = len(Y_result['loss_results'])
+
+                bin_edges = np.linspace(Y_min, Y_max, N_segs + 1)
+                bin_width = bin_edges[1] - bin_edges[0]
+                bar_width = (bin_width*0.9) / N_losses
+                err_bins = np.zeros((N_losses, N_segs))
+
+                # Calculate error over a given range of Y and generate bar plot comparing all loss functions
+                fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(5, 6))
+                plt.rcParams['axes.grid'] = True
+                plt.rc('font', family='Liberation Serif', size=12)
+                fig.suptitle('{0} CR{1} ({2} {3})'.format(dataset_target, Y_result['compression_ratio'],
+                                                          Y_result['desc_model'].split('_')[0],
+                                                          Y_result['cfg_str_short']))
+                ax1.grid('on')
+                ax2.grid('on')
+
+                for ind_quant, loss_result in enumerate(Y_result['loss_results']):
+                    for ind_bin in range(N_segs):
+                        # Select all points where Y_tests is between the two edges of the bin
+                        temp1 = loss_result['Y_test'] >= bin_edges[ind_bin]
+                        temp2 = loss_result['Y_test'] < bin_edges[ind_bin + 1]
+                        b_ind_valid = np.logical_and(temp1, temp2)
+
+                        Y_test = np.array(loss_result['Y_test'])[b_ind_valid]
+                        Y_predict = np.array(loss_result['Y_predict'])[b_ind_valid]
+
+                        err_bins[ind_quant, ind_bin] = np.sqrt(np.mean((Y_test - Y_predict)**2))
+
+                    ax1.bar(bin_edges[0:-1] + 0.05*bin_width + ind_quant*bar_width, err_bins[ind_quant, :],
+                            width=bar_width, align='edge', color=colors_plot[loss_result['desc_loss']])
+
+                if err_max:
+                    ax1.set_ylim(bottom=0, top=err_max)
+                ax1.legend([loss_result['desc_loss'] for loss_result in Y_result['loss_results']])
+                ax1.set_ylabel('Error (rms)')
+
+                Y_test = [element for result in Y_result['loss_results'] for element in result['Y_test'] ]
+                ax2.hist(Y_test, bins=bin_edges, align='left', density=True)
+                ax2.set_xlabel('Y_test')
+
+                plt.savefig(os.path.join(directory_img, 'fig_loss_{0}_cfg{2}_{3}_cr{1}.png'.format(dataset_target,
+                                         Y_result['compression_ratio'], Y_result['desc_model'].split('_')[0],
+                                         Y_result['cfg_str_short'])))
+                plt.close()
