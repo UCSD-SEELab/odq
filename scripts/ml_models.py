@@ -23,7 +23,7 @@ def custom_loss_function_step(y_true, y_pred , b=0 , sample_weight=None) :
     """
     Custom loss function for Keras using a step function at 'b' based on y_true
     """
-    alpha = 0.5 * (tf.sign(y_true - b) + 1)
+    alpha = 50 * (tf.sign(y_true - b) + 1)
     return alpha*K.mean(K.square(y_pred - y_true))
 
 
@@ -152,7 +152,7 @@ def generate_model_metasense(N_x, N_y, model_cfg={'lr':0.01, 'dropout':0.5, 'dec
         max_val1 = model_cfg['max_val']
         loss = partial(custom_loss_function_sig, min_val=min_val1, max_val=max_val1)
     elif model_cfg['loss'] == 'step':
-        loss_step_b = 45
+        loss_step_b = model_cfg['b_value']
         loss = partial(custom_loss_function_step, b=loss_step_b)
     else:
         loss = model_cfg['loss']
